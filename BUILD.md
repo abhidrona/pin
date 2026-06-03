@@ -205,6 +205,23 @@ Push it:
 make tag-push VERSION=0.1.0
 ```
 
+
+## GitHub release workflow
+
+The release workflow builds and publishes GitHub Release assets when a `v*` tag is pushed, or when the workflow is run manually with a version.
+
+It currently builds:
+
+```text
+x86_64-unknown-linux-gnu
+x86_64-apple-darwin
+aarch64-apple-darwin
+```
+
+Both Darwin targets use `macos-latest`. Avoid pinning Intel macOS labels such as `macos-13` in the workflow because those runners can remain queued for a long time.
+
+The workflow also sets job timeouts so real build/test hangs fail instead of running indefinitely.
+
 ## Homebrew tap release flow
 
 This repo can be tapped directly from:
