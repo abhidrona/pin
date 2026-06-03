@@ -5,11 +5,6 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version without v prefix, for example 0.1.0"
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -18,8 +13,71 @@ env:
   BIN: pin
 
 jobs:
+  resolve-version:
+    name: Resolve and validate version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version from Cargo.toml and validate
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Parse the package version from Cargo.toml (first `version = "X.Y.Z"`
+          # under [package]).
+          CARGO_VERSION=$(awk '
+            /^\[package\]/ { in_pkg=1; next }
+            /^\[/ { in_pkg=0 }
+            in_pkg && /^version[[:space:]]*=/ {
+              match($0, /"[^"]+"/)
+              print substr($0, RSTART+1, RLENGTH-2)
+              exit
+            }
+          ' Cargo.toml)
+
+          if [[ ! "${CARGO_VERSION:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].+)?$ ]]; then
+            echo "::error::Could not parse a semver package version from Cargo.toml (got '${CARGO_VERSION:-}')"
+            exit 1
+          fi
+
+          TAG="v${CARGO_VERSION}"
+          echo "Cargo.toml package version: ${CARGO_VERSION} → tag ${TAG}"
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            PUSHED_TAG="${{ github.ref_name }}"
+            if [[ "${PUSHED_TAG}" != "${TAG}" ]]; then
+              echo "::error::Pushed tag '${PUSHED_TAG}' does not match Cargo.toml version '${CARGO_VERSION}'. Either bump Cargo.toml to ${PUSHED_TAG#v} or push tag ${TAG} instead."
+              exit 1
+            fi
+          else
+            # workflow_dispatch: the tag must NOT already exist. This is the
+            # "bump before release" guard — if Cargo.toml has not been bumped
+            # since the previous release, this errors out.
+            if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              echo "::error::Tag ${TAG} already exists on origin. Bump the package version in Cargo.toml before triggering another release."
+              exit 1
+            fi
+            if git rev-parse --verify --quiet "${TAG}" >/dev/null; then
+              echo "::error::Tag ${TAG} already exists locally. Bump the package version in Cargo.toml before triggering another release."
+              exit 1
+            fi
+          fi
+
+          echo "version=${CARGO_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
   test:
     name: Test
+    needs: resolve-version
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -44,7 +102,7 @@ jobs:
     name: Create release tag
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: test
+    needs: [resolve-version, test]
     if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
@@ -54,22 +112,17 @@ jobs:
 
       - name: Create and push tag
         env:
-          VERSION: ${{ inputs.version }}
+          TAG: ${{ needs.resolve-version.outputs.tag }}
         run: |
           set -euo pipefail
-          TAG="v${VERSION}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists locally."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "Release $TAG"
-          fi
-          git push origin "$TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
 
   build:
     name: Build ${{ matrix.target }}
-    needs: [test, create-tag]
+    needs: [resolve-version, test, create-tag]
     if: |
       always() &&
       needs.test.result == 'success' &&
@@ -90,23 +143,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - name: Resolve release version
-        id: rel
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          else
-            TAG="${{ github.ref_name }}"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-            echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.rel.outputs.tag }}
+          ref: ${{ needs.resolve-version.outputs.tag }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -118,10 +158,11 @@ jobs:
 
       - name: Package artifact
         shell: bash
+        env:
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.rel.outputs.version }}"
-          TARGET="${{ matrix.target }}"
           PKG="pin-${VERSION}-${TARGET}"
           mkdir -p "dist/${PKG}/bin" "dist/${PKG}/man/man1" "dist/${PKG}/docs"
           cp "target/${TARGET}/release/pin" "dist/${PKG}/bin/pin"
@@ -133,30 +174,20 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pin-${{ steps.rel.outputs.version }}-${{ matrix.target }}
+          name: pin-${{ needs.resolve-version.outputs.version }}-${{ matrix.target }}
           path: |
             dist/*.tar.gz
             dist/*.sha256
 
   release:
     name: Publish GitHub release
-    needs: build
+    needs: [resolve-version, build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: |
       always() &&
       needs.build.result == 'success'
     steps:
-      - name: Resolve release tag
-        id: rel
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -166,9 +197,59 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.rel.outputs.tag }}
-          name: Pin ${{ steps.rel.outputs.tag }}
+          tag_name: ${{ needs.resolve-version.outputs.tag }}
+          name: Pin ${{ needs.resolve-version.outputs.tag }}
           generate_release_notes: true
           files: |
             dist/*.tar.gz
             dist/*.sha256
+
+  bump-formula:
+    name: Bump Homebrew formula
+    needs: [resolve-version, release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      always() &&
+      needs.release.result == 'success'
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          # Uses the workflow token. If branch protection on `main` requires
+          # PRs, this push will fail — switch to opening a PR (e.g. via
+          # peter-evans/create-pull-request) in that case.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rewrite formula tag(s)
+        env:
+          TAG: ${{ needs.resolve-version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          updated=()
+          for f in Formula/pin.rb packaging/homebrew/pin.rb; do
+            if [[ -f "$f" ]]; then
+              # Replace the v-prefixed semver inside `tag: "vX.Y.Z"`.
+              sed -i -E "s|(tag:[[:space:]]*\")v[0-9]+\.[0-9]+\.[0-9]+(\")|\\1${TAG}\\2|" "$f"
+              updated+=("$f")
+            fi
+          done
+
+          if [[ ${#updated[@]} -eq 0 ]]; then
+            echo "::warning::No formula files found to update."
+            exit 0
+          fi
+
+          if git diff --quiet -- "${updated[@]}"; then
+            echo "Formula already at ${TAG} — nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${updated[@]}"
+          git commit -m "chore: bump Homebrew formula to ${TAG}"
+          git push origin main
