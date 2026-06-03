@@ -18,7 +18,7 @@ RELEASE_DIR := dist
 HOST_TRIPLE ?= $(shell rustc -vV 2>/dev/null | sed -n 's/^host: //p')
 LINUX_TARGET ?= x86_64-unknown-linux-musl
 
-.PHONY: help fmt format fix-format fmt-check lint check build test release release-check install uninstall clean package package-local linux tag tag-push brew-formula man
+.PHONY: help fmt format fix-format fmt-check lint lint-fix fix check build test release release-check install uninstall clean package package-local linux tag tag-push brew-formula man
 
 help:
 	@echo "pin build targets"
@@ -27,8 +27,10 @@ help:
 	@echo "  make format          Alias for fmt"
 	@echo "  make fix-format      Alias for fmt"
 	@echo "  make fmt-check       Check Rust formatting"
-	@echo "  make release-check   Run fmt-check, lint, test, and release"
 	@echo "  make lint            Run clippy with warnings denied"
+	@echo "  make lint-fix        Apply safe Clippy fixes"
+	@echo "  make fix             Run rustfmt + safe Clippy fixes"
+	@echo "  make release-check   Run fmt-check, lint, test, and release"
 	@echo "  make check           Cargo check"
 	@echo "  make build           Debug build"
 	@echo "  make test            Run all tests"
@@ -53,6 +55,11 @@ fmt-check:
 
 lint:
 	cargo clippy --all-targets --all-features -- -D warnings
+
+lint-fix:
+	cargo clippy --fix --all-targets --all-features --allow-dirty --allow-staged -- -D warnings
+
+fix: fmt lint-fix
 
 check:
 	cargo check --all-targets --all-features

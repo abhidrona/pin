@@ -25,9 +25,9 @@ cargo build
 ```
 
 
-## Format
+## Format, lint, and fix
 
-Fix formatting before committing or releasing:
+Format Rust code before committing or releasing:
 
 ```bash
 make fmt
@@ -46,13 +46,40 @@ Check formatting without changing files:
 make fmt-check
 ```
 
+Run Clippy with warnings denied, matching CI/release behavior:
+
+```bash
+make lint
+```
+
+Apply safe Clippy fixes automatically:
+
+```bash
+make lint-fix
+```
+
+Run both rustfmt and safe Clippy fixes:
+
+```bash
+make fix
+```
+
+Use this before opening a PR or cutting a release:
+
+```bash
+make fix
+make release-check
+```
+
+`make fmt` only changes formatting and line wrapping. It will not fix Clippy issues such as `useless_format`, `&PathBuf` vs `&Path`, or `manual_clamp`. Use `make lint` to detect those and `make lint-fix` / `make fix` to apply safe automatic fixes.
+
 Run the full local release gate:
 
 ```bash
 make release-check
 ```
 
-This runs formatting checks, clippy, tests, and the optimized release build.
+This runs formatting checks, Clippy, tests, and the optimized release build.
 
 ## Test
 

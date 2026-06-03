@@ -41,7 +41,13 @@ fn negative_cannot_note_or_change_missing_task_in_workflow() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args(["note", "99", "--agent", "claude", "Changed Recover page URL params"])
+        .args([
+            "note",
+            "99",
+            "--agent",
+            "claude",
+            "Changed Recover page URL params",
+        ])
         .assert()
         .failure()
         .stderr(predicate::str::contains("Task #99 not found"));
@@ -60,7 +66,11 @@ fn negative_cannot_note_or_change_missing_task_in_workflow() {
         .failure()
         .stderr(predicate::str::contains("Task #99 not found"));
 
-    assert_eq!(read_log_lines(&fscrm).len(), before, "failed commands must not append events");
+    assert_eq!(
+        read_log_lines(&fscrm).len(),
+        before,
+        "failed commands must not append events"
+    );
 }
 
 #[test]
@@ -83,7 +93,11 @@ fn negative_fail_requires_non_empty_reason_and_does_not_append() {
         .failure()
         .stderr(predicate::str::contains("failed reason is required"));
 
-    assert_eq!(read_log_lines(&fscrm).len(), before, "blank fail reason must not append task.status");
+    assert_eq!(
+        read_log_lines(&fscrm).len(),
+        before,
+        "blank fail reason must not append task.status"
+    );
 }
 
 #[test]
@@ -131,7 +145,10 @@ fn negative_all_skips_deleted_registered_project_and_still_shows_existing_projec
         .success();
     let deleted_root = deleted.path().to_path_buf();
     drop(deleted);
-    assert!(!deleted_root.exists(), "TempDir drop should delete the registered project");
+    assert!(
+        !deleted_root.exists(),
+        "TempDir drop should delete the registered project"
+    );
 
     cmd(&home)
         .current_dir(fscrm.path())
@@ -178,7 +195,10 @@ fn negative_corrupt_log_causes_show_and_brief_to_fail_without_overwriting_log() 
         .stderr(predicate::str::contains("failed to parse"));
 
     let data = fs::read_to_string(log_path).unwrap();
-    assert_eq!(data, "this is not json\n", "read failures must not overwrite corrupt logs");
+    assert_eq!(
+        data, "this is not json\n",
+        "read failures must not overwrite corrupt logs"
+    );
 }
 
 #[test]
@@ -196,7 +216,13 @@ fn negative_agent_report_requires_existing_task_agent_and_body() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args(["agent-report", "99", "--agent", "claude", "Changed URL params"])
+        .args([
+            "agent-report",
+            "99",
+            "--agent",
+            "claude",
+            "Changed URL params",
+        ])
         .assert()
         .failure()
         .stderr(predicate::str::contains("Task #99 not found"));
@@ -215,5 +241,9 @@ fn negative_agent_report_requires_existing_task_agent_and_body() {
         .failure()
         .stderr(predicate::str::contains("Agent report cannot be empty"));
 
-    assert_eq!(read_log_lines(&fscrm).len(), before, "invalid agent reports must not append events");
+    assert_eq!(
+        read_log_lines(&fscrm).len(),
+        before,
+        "invalid agent reports must not append events"
+    );
 }

@@ -42,8 +42,9 @@ impl Status {
         }
     }
 
-
-    pub fn is_active(self) -> bool { !matches!(self, Status::Done | Status::Cancelled) }
+    pub fn is_active(self) -> bool {
+        !matches!(self, Status::Done | Status::Cancelled)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
@@ -72,7 +73,12 @@ impl AgentStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "kebab-case")]
-pub enum Priority { Low, Normal, High, Urgent }
+pub enum Priority {
+    Low,
+    Normal,
+    High,
+    Urgent,
+}
 
 impl Priority {
     pub fn as_str(self) -> &'static str {
@@ -191,35 +197,57 @@ impl ProjectState {
                         let agent = ev.agent.clone();
                         let mut agents = BTreeMap::new();
                         if let Some(a) = agent.clone() {
-                            agents.insert(a.clone(), AgentProgress { agent: a, status: AgentStatus::Assigned, body: None, updated_at: ev.ts });
+                            agents.insert(
+                                a.clone(),
+                                AgentProgress {
+                                    agent: a,
+                                    status: AgentStatus::Assigned,
+                                    body: None,
+                                    updated_at: ev.ts,
+                                },
+                            );
                         }
-                        tasks.insert(id, Task {
+                        tasks.insert(
                             id,
-                            title,
-                            status: Status::Todo,
-                            priority: ev.priority.unwrap_or(Priority::Normal),
-                            session: ev.session.clone().or_else(|| Some("default".to_string())),
-                            agent,
-                            tags: ev.tags.clone().unwrap_or_default(),
-                            created_at: ev.ts,
-                            updated_at: ev.ts,
-                            notes: Vec::new(),
-                            agents,
-                        });
+                            Task {
+                                id,
+                                title,
+                                status: Status::Todo,
+                                priority: ev.priority.unwrap_or(Priority::Normal),
+                                session: ev.session.clone().or_else(|| Some("default".to_string())),
+                                agent,
+                                tags: ev.tags.clone().unwrap_or_default(),
+                                created_at: ev.ts,
+                                updated_at: ev.ts,
+                                notes: Vec::new(),
+                                agents,
+                            },
+                        );
                     }
                 }
                 "task.title" => {
                     if let (Some(id), Some(title)) = (ev.id, ev.title.clone()) {
-                        if let Some(t) = tasks.get_mut(&id) { t.title = title; t.updated_at = ev.ts; }
+                        if let Some(t) = tasks.get_mut(&id) {
+                            t.title = title;
+                            t.updated_at = ev.ts;
+                        }
                     }
                 }
                 "task.status" => {
                     if let (Some(id), Some(status)) = (ev.id, ev.status) {
-                        if let Some(t) = tasks.get_mut(&id) { t.status = status; t.updated_at = ev.ts; }
+                        if let Some(t) = tasks.get_mut(&id) {
+                            t.status = status;
+                            t.updated_at = ev.ts;
+                        }
                     }
                     if let (Some(id), Some(body)) = (ev.id, ev.body.clone()) {
                         if let Some(t) = tasks.get_mut(&id) {
-                            t.notes.push(Note { created_at: ev.ts, author: "human".into(), agent: None, body });
+                            t.notes.push(Note {
+                                created_at: ev.ts,
+                                author: "human".into(),
+                                agent: None,
+                                body,
+                            });
                             t.updated_at = ev.ts;
                         }
                     }
@@ -227,17 +255,41 @@ impl ProjectState {
                 "task.note" => {
                     if let (Some(id), Some(body)) = (ev.id, ev.body.clone()) {
                         if let Some(t) = tasks.get_mut(&id) {
-                            t.notes.push(Note { created_at: ev.ts, author: if ev.agent.is_some() { "agent".into() } else { "human".into() }, agent: ev.agent.clone(), body });
+                            t.notes.push(Note {
+                                created_at: ev.ts,
+                                author: if ev.agent.is_some() {
+                                    "agent".into()
+                                } else {
+                                    "human".into()
+                                },
+                                agent: ev.agent.clone(),
+                                body,
+                            });
                             t.updated_at = ev.ts;
                         }
                     }
                 }
                 "agent.progress" => {
-                    if let (Some(id), Some(agent), Some(status)) = (ev.id, ev.agent.clone(), ev.agent_status) {
+                    if let (Some(id), Some(agent), Some(status)) =
+                        (ev.id, ev.agent.clone(), ev.agent_status)
+                    {
                         if let Some(t) = tasks.get_mut(&id) {
-                            t.agents.insert(agent.clone(), AgentProgress { agent: agent.clone(), status, body: ev.body.clone(), updated_at: ev.ts });
+                            t.agents.insert(
+                                agent.clone(),
+                                AgentProgress {
+                                    agent: agent.clone(),
+                                    status,
+                                    body: ev.body.clone(),
+                                    updated_at: ev.ts,
+                                },
+                            );
                             if let Some(body) = ev.body.clone() {
-                                t.notes.push(Note { created_at: ev.ts, author: "agent".into(), agent: Some(agent), body });
+                                t.notes.push(Note {
+                                    created_at: ev.ts,
+                                    author: "agent".into(),
+                                    agent: Some(agent),
+                                    body,
+                                });
                             }
                             t.updated_at = ev.ts;
                         }
@@ -246,33 +298,53 @@ impl ProjectState {
                 "task.tags.add" => {
                     if let (Some(id), Some(tags)) = (ev.id, ev.tags.clone()) {
                         if let Some(t) = tasks.get_mut(&id) {
-                            for tag in tags { if !t.tags.contains(&tag) { t.tags.push(tag); } }
-                            t.tags.sort(); t.updated_at = ev.ts;
+                            for tag in tags {
+                                if !t.tags.contains(&tag) {
+                                    t.tags.push(tag);
+                                }
+                            }
+                            t.tags.sort();
+                            t.updated_at = ev.ts;
                         }
                     }
                 }
                 "task.tags.remove" => {
                     if let (Some(id), Some(tags)) = (ev.id, ev.tags.clone()) {
-                        if let Some(t) = tasks.get_mut(&id) { t.tags.retain(|tag| !tags.contains(tag)); t.updated_at = ev.ts; }
+                        if let Some(t) = tasks.get_mut(&id) {
+                            t.tags.retain(|tag| !tags.contains(tag));
+                            t.updated_at = ev.ts;
+                        }
                     }
                 }
                 _ => {}
             }
         }
 
-        Self { meta, next_id, tasks }
+        Self {
+            meta,
+            next_id,
+            tasks,
+        }
     }
 
     pub fn filtered(&self, session: Option<&str>, tags: &[String]) -> Self {
-        let tasks = self.tasks.iter()
+        let tasks = self
+            .tasks
+            .iter()
             .filter(|(_, task)| {
                 if let Some(session) = session {
-                    if task.session.as_deref().unwrap_or("default") != session { return false; }
+                    if task.session.as_deref().unwrap_or("default") != session {
+                        return false;
+                    }
                 }
                 tags.iter().all(|tag| task.tags.contains(tag))
             })
             .map(|(id, task)| (*id, task.clone()))
             .collect();
-        Self { meta: self.meta.clone(), next_id: self.next_id, tasks }
+        Self {
+            meta: self.meta.clone(),
+            next_id: self.next_id,
+            tasks,
+        }
     }
 }

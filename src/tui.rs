@@ -26,7 +26,12 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
             selected = visible_ids.len() - 1;
         }
         if details {
-            draw_detail(&mut stdout, &state, visible_ids.get(selected).copied(), show_help)?;
+            draw_detail(
+                &mut stdout,
+                &state,
+                visible_ids.get(selected).copied(),
+                show_help,
+            )?;
         } else {
             draw_list(&mut stdout, &state, selected, show_help)?;
         }
@@ -60,53 +65,87 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                         let title = prompt("Add task: ")?;
                         if !title.trim().is_empty() {
                             let tags = prompt("Tags optional, comma-separated: ")?;
-                            let _ = ops::add(&root, title, Priority::Normal, None, vec![tags], session.clone());
+                            let _ = ops::add(
+                                &root,
+                                title,
+                                Priority::Normal,
+                                None,
+                                vec![tags],
+                                session.clone(),
+                            );
                         }
                     }
-                    KeyCode::Char('e') => if let Some(id) = visible_ids.get(selected).copied() {
-                        let title = prompt("Edit title: ")?;
-                        if !title.trim().is_empty() {
-                            let _ = ops::set_title(&root, id, title);
+                    KeyCode::Char('e') => {
+                        if let Some(id) = visible_ids.get(selected).copied() {
+                            let title = prompt("Edit title: ")?;
+                            if !title.trim().is_empty() {
+                                let _ = ops::set_title(&root, id, title);
+                            }
                         }
-                    },
-                    KeyCode::Char('s') => set_selected(&root, &visible_ids, selected, Status::Doing, None),
-                    KeyCode::Char('r') => set_selected(&root, &visible_ids, selected, Status::NeedsReview, None),
-                    KeyCode::Char('v') => if let Some(id) = visible_ids.get(selected).copied() {
-                        let msg = prompt("Verified note optional: ")?;
-                        let body = if msg.trim().is_empty() { None } else { Some(msg) };
-                        let _ = ops::status(&root, id, Status::Verified, body);
-                    },
-                    KeyCode::Char('f') => if let Some(id) = visible_ids.get(selected).copied() {
-                        let msg = prompt("Failure reason: ")?;
-                        let _ = ops::status(&root, id, Status::Failed, Some(msg));
-                    },
-                    KeyCode::Char('b') => if let Some(id) = visible_ids.get(selected).copied() {
-                        let msg = prompt("Blocked reason: ")?;
-                        let _ = ops::status(&root, id, Status::Blocked, Some(msg));
-                    },
-                    KeyCode::Char('c') => set_selected(&root, &visible_ids, selected, Status::Cancelled, None),
-                    KeyCode::Char('d') => set_selected(&root, &visible_ids, selected, Status::Done, None),
-                    KeyCode::Char('n') => if let Some(id) = visible_ids.get(selected).copied() {
-                        let msg = prompt("Human note: ")?;
-                        if !msg.trim().is_empty() {
-                            let _ = ops::note(&root, id, msg, None);
+                    }
+                    KeyCode::Char('s') => {
+                        set_selected(&root, &visible_ids, selected, Status::Doing, None)
+                    }
+                    KeyCode::Char('r') => {
+                        set_selected(&root, &visible_ids, selected, Status::NeedsReview, None)
+                    }
+                    KeyCode::Char('v') => {
+                        if let Some(id) = visible_ids.get(selected).copied() {
+                            let msg = prompt("Verified note optional: ")?;
+                            let body = if msg.trim().is_empty() {
+                                None
+                            } else {
+                                Some(msg)
+                            };
+                            let _ = ops::status(&root, id, Status::Verified, body);
                         }
-                    },
-                    KeyCode::Char('t') => if let Some(id) = visible_ids.get(selected).copied() {
-                        let tags = prompt("Add tags, comma-separated: ")?;
-                        let _ = ops::add_tags(&root, id, vec![tags]);
-                    },
-                    KeyCode::Char('A') | KeyCode::Char('G') => if let Some(id) = visible_ids.get(selected).copied() {
-                        let agent = prompt("Agent name: ")?;
-                        let status_raw = prompt("Agent status (assigned|working|reported|needs-input|failed|stopped): ")?;
-                        let status = parse_agent_status(&status_raw).unwrap_or(AgentStatus::Reported);
-                        let msg = prompt("Agent progress: ")?;
-                        if status == AgentStatus::Reported {
-                            let _ = ops::agent_report(&root, id, agent, msg);
-                        } else {
-                            let _ = ops::agent_progress(&root, id, agent, status, msg);
+                    }
+                    KeyCode::Char('f') => {
+                        if let Some(id) = visible_ids.get(selected).copied() {
+                            let msg = prompt("Failure reason: ")?;
+                            let _ = ops::status(&root, id, Status::Failed, Some(msg));
                         }
-                    },
+                    }
+                    KeyCode::Char('b') => {
+                        if let Some(id) = visible_ids.get(selected).copied() {
+                            let msg = prompt("Blocked reason: ")?;
+                            let _ = ops::status(&root, id, Status::Blocked, Some(msg));
+                        }
+                    }
+                    KeyCode::Char('c') => {
+                        set_selected(&root, &visible_ids, selected, Status::Cancelled, None)
+                    }
+                    KeyCode::Char('d') => {
+                        set_selected(&root, &visible_ids, selected, Status::Done, None)
+                    }
+                    KeyCode::Char('n') => {
+                        if let Some(id) = visible_ids.get(selected).copied() {
+                            let msg = prompt("Human note: ")?;
+                            if !msg.trim().is_empty() {
+                                let _ = ops::note(&root, id, msg, None);
+                            }
+                        }
+                    }
+                    KeyCode::Char('t') => {
+                        if let Some(id) = visible_ids.get(selected).copied() {
+                            let tags = prompt("Add tags, comma-separated: ")?;
+                            let _ = ops::add_tags(&root, id, vec![tags]);
+                        }
+                    }
+                    KeyCode::Char('A') | KeyCode::Char('G') => {
+                        if let Some(id) = visible_ids.get(selected).copied() {
+                            let agent = prompt("Agent name: ")?;
+                            let status_raw = prompt("Agent status (assigned|working|reported|needs-input|failed|stopped): ")?;
+                            let status =
+                                parse_agent_status(&status_raw).unwrap_or(AgentStatus::Reported);
+                            let msg = prompt("Agent progress: ")?;
+                            if status == AgentStatus::Reported {
+                                let _ = ops::agent_report(&root, id, agent, msg);
+                            } else {
+                                let _ = ops::agent_progress(&root, id, agent, status, msg);
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -209,7 +248,11 @@ fn draw_list(
                 if selected_id == Some(task.id) {
                     queue!(stdout, SetAttribute(Attribute::Reverse))?;
                 }
-                let marker = if task.status == Status::Doing { "→" } else { " " };
+                let marker = if task.status == Status::Doing {
+                    "→"
+                } else {
+                    " "
+                };
                 let mut suffix = String::new();
                 if let Some(s) = &task.session {
                     suffix.push_str(&format!(" %{}", s));
@@ -385,7 +428,11 @@ fn draw_detail(
 fn ordered_visible(state: &ProjectState) -> Vec<&Task> {
     let mut out = Vec::new();
     for (_, statuses) in sections() {
-        for task in state.tasks.values().filter(|t| statuses.contains(&t.status)) {
+        for task in state
+            .tasks
+            .values()
+            .filter(|t| statuses.contains(&t.status))
+        {
             if task.status.is_active() {
                 out.push(task);
             }
