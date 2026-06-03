@@ -8,6 +8,8 @@ License: MIT
 
 Pin keeps lightweight task notes attached to your current directory, session, or git worktree. It helps humans, Claude, Codex, and other agents collaborate without losing active work, review status, failures, or handoff context.
 
+Why it exists - Bridges the gap when you're juggling tmux panes / worktrees / multiple agents in one repo — gives everyone a shared, inspectable record of "what's in flight, who claimed it, what failed, what's ready for human review" without a database or daemon.
+
 ---
 
 ## Quick start
