@@ -1,3 +1,4 @@
+use crate::file_refs;
 use crate::model::{AgentStatus, Event, Priority, Status};
 use crate::storage::{append_event, load_state};
 use anyhow::{bail, Result};
@@ -10,6 +11,7 @@ pub fn add(
     agent: Option<String>,
     tags: Vec<String>,
     session: Option<String>,
+    files: Vec<String>,
 ) -> Result<u64> {
     let title = title.trim().to_string();
     if title.is_empty() {
@@ -19,13 +21,18 @@ pub fn add(
     let id = state.next_id;
     let mut ev = Event::now("task.add");
     ev.id = Some(id);
-    ev.title = Some(title);
+    ev.title = Some(title.clone());
     ev.priority = Some(priority);
     ev.agent = clean_optional(agent);
     ev.session = clean_optional(session).or_else(|| Some("default".to_string()));
     let tags = normalize_tags(tags);
     if !tags.is_empty() {
         ev.tags = Some(tags);
+    }
+    let mut files = file_refs::resolve(root, &files)?;
+    files = file_refs::merge(files, file_refs::extract_mentions(root, &title)?);
+    if !files.is_empty() {
+        ev.files = Some(files);
     }
     append_event(root, &ev)?;
     Ok(id)
@@ -39,7 +46,11 @@ pub fn set_title(root: &Path, id: u64, title: String) -> Result<()> {
     require_task(root, id)?;
     let mut ev = Event::now("task.title");
     ev.id = Some(id);
+    let files = file_refs::extract_mentions(root, &title)?;
     ev.title = Some(title);
+    if !files.is_empty() {
+        ev.files = Some(files);
+    }
     append_event(root, &ev)
 }
 
@@ -54,6 +65,12 @@ pub fn status(root: &Path, id: u64, status: Status, body: Option<String>) -> Res
     ev.id = Some(id);
     ev.status = Some(status);
     ev.body = body.map(|b| b.trim().to_string()).filter(|b| !b.is_empty());
+    if let Some(body) = ev.body.as_deref() {
+        let files = file_refs::extract_mentions(root, body)?;
+        if !files.is_empty() {
+            ev.files = Some(files);
+        }
+    }
     append_event(root, &ev)
 }
 
@@ -65,8 +82,12 @@ pub fn note(root: &Path, id: u64, body: String, agent: Option<String>) -> Result
     require_task(root, id)?;
     let mut ev = Event::now("task.note");
     ev.id = Some(id);
+    let files = file_refs::extract_mentions(root, &body)?;
     ev.body = Some(body);
     ev.agent = clean_optional(agent);
+    if !files.is_empty() {
+        ev.files = Some(files);
+    }
     append_event(root, &ev)
 }
 
@@ -114,7 +135,11 @@ pub fn agent_progress(
     ev.id = Some(id);
     ev.agent = Some(agent);
     ev.agent_status = Some(status);
+    let files = file_refs::extract_mentions(root, &body)?;
     ev.body = Some(body);
+    if !files.is_empty() {
+        ev.files = Some(files);
+    }
     append_event(root, &ev)
 }
 
@@ -134,6 +159,30 @@ pub fn agent_report(root: &Path, id: u64, agent: String, body: String) -> Result
     require_task(root, id)?;
     agent_progress(root, id, agent, AgentStatus::Reported, body)?;
     status(root, id, Status::NeedsReview, None)
+}
+
+pub fn add_files(root: &Path, id: u64, files: Vec<String>) -> Result<()> {
+    let files = file_refs::resolve(root, &files)?;
+    if files.is_empty() {
+        bail!("At least one file reference is required");
+    }
+    require_task(root, id)?;
+    let mut ev = Event::now("task.files.add");
+    ev.id = Some(id);
+    ev.files = Some(files);
+    append_event(root, &ev)
+}
+
+pub fn remove_files(root: &Path, id: u64, files: Vec<String>) -> Result<()> {
+    let files = file_refs::resolve(root, &files)?;
+    if files.is_empty() {
+        bail!("At least one file reference is required");
+    }
+    require_task(root, id)?;
+    let mut ev = Event::now("task.files.remove");
+    ev.id = Some(id);
+    ev.files = Some(files);
+    append_event(root, &ev)
 }
 
 pub fn normalize_tags(raw: Vec<String>) -> Vec<String> {

@@ -102,6 +102,16 @@ pub fn task_detail(state: &ProjectState, id: u64) -> String {
                 .join(" ")
         ));
     }
+    if !task.files.is_empty() {
+        out.push_str(&format!(
+            "Files: {}\n",
+            task.files
+                .iter()
+                .map(|f| format!("@{f}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
     out.push('\n');
 
     out.push_str("Agent progress:\n");
@@ -296,6 +306,16 @@ fn brief_section(out: &mut String, title: &str, state: &ProjectState, statuses: 
                     .join(" ")
             ));
         }
+        if !t.files.is_empty() {
+            out.push_str(&format!(
+                "  Files: {}\n",
+                t.files
+                    .iter()
+                    .map(|f| format!("@{f}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ));
+        }
         if !t.agents.is_empty() {
             out.push_str("  Agent progress:\n");
             for a in t.agents.values() {
@@ -336,6 +356,13 @@ fn task_suffix(task: &Task) -> String {
     }
     for tag in &task.tags {
         parts.push(format!("#{}", tag));
+    }
+    if !task.files.is_empty() {
+        parts.push(format!(
+            "@{} file{}",
+            task.files.len(),
+            if task.files.len() == 1 { "" } else { "s" }
+        ));
     }
     if parts.is_empty() {
         String::new()

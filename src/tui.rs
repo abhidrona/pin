@@ -1,3 +1,4 @@
+use crate::file_refs;
 use crate::model::{AgentStatus, Priority, ProjectState, Status, Task};
 use crate::{ops, storage};
 use anyhow::Result;
@@ -72,14 +73,17 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                                 None,
                                 vec![tags],
                                 session.clone(),
+                                Vec::new(),
                             );
                         }
                     }
                     KeyCode::Char('e') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            let title = prompt("Edit title: ")?;
-                            if !title.trim().is_empty() {
-                                let _ = ops::set_title(&root, id, title);
+                            if let Some(current) = current_title(&root, id) {
+                                let title = prompt_prefilled("Edit title", &current)?;
+                                if !title.trim().is_empty() {
+                                    let _ = ops::set_title(&root, id, title);
+                                }
                             }
                         }
                     }
@@ -130,6 +134,13 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                         if let Some(id) = visible_ids.get(selected).copied() {
                             let tags = prompt("Add tags, comma-separated: ")?;
                             let _ = ops::add_tags(&root, id, vec![tags]);
+                        }
+                    }
+                    KeyCode::Char('@') => {
+                        if let Some(id) = visible_ids.get(selected).copied() {
+                            if let Some(file) = pick_file(&root)? {
+                                let _ = ops::add_files(&root, id, vec![file]);
+                            }
                         }
                     }
                     KeyCode::Char('A') | KeyCode::Char('G') => {
@@ -280,9 +291,9 @@ fn draw_list(
         }
     }
     let help = if show_help {
-        "j/k move · Enter details · a add · A agent · s start · r review · v verify · f fail · b block · c cancel · d done · n note · t tags · ? hide"
+        "j/k move · Enter details · a add · @ file · A agent · s start · r review · v verify · f fail · b block · c cancel · d done · n note · t tags · ? hide"
     } else {
-        "? help · Enter details · a add · A agent · n note · v verify · f fail · c cancel · q close"
+        "? help · Enter details · a add · @ file · A agent · n note · v verify · f fail · c cancel · q close"
     };
     queue!(
         stdout,
@@ -353,6 +364,24 @@ fn draw_detail(
         )?;
         line += 1;
     }
+    if !task.files.is_empty() {
+        queue!(
+            stdout,
+            MoveTo(x + 2, line),
+            Print(trunc(
+                &format!(
+                    "Files: {}",
+                    task.files
+                        .iter()
+                        .map(|f| format!("@{f}"))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ),
+                (w - 4) as usize
+            ))
+        )?;
+        line += 1;
+    }
     line += 1;
     queue!(
         stdout,
@@ -412,9 +441,9 @@ fn draw_detail(
         }
     }
     let help = if show_help {
-        "Esc back · A agent progress/report · n note · r review · v verify · f fail · b block · c cancel · d done · e edit · ? hide"
+        "Esc back · @ file · A agent progress/report · n note · r review · v verify · f fail · b block · c cancel · d done · e edit · ? hide"
     } else {
-        "Esc back · A agent · n note · v verify · f fail · c cancel · q close"
+        "Esc back · @ file · A agent · n note · v verify · f fail · c cancel · q close"
     };
     queue!(
         stdout,
@@ -501,6 +530,70 @@ fn draw_box(stdout: &mut io::Stdout, x: u16, y: u16, w: u16, h: u16) -> Result<(
         Print("┘")
     )?;
     Ok(())
+}
+
+fn current_title(root: &Path, id: u64) -> Option<String> {
+    storage::load_state(root)
+        .ok()
+        .and_then(|state| state.tasks.get(&id).map(|t| t.title.clone()))
+}
+
+fn pick_file(root: &Path) -> Result<Option<String>> {
+    let query = prompt("Find file: ")?;
+    if query.trim().is_empty() {
+        return Ok(None);
+    }
+    let matches = file_refs::search(root, &query, 10)?;
+    if matches.is_empty() {
+        prompt_message("No matching files. Press Enter to continue.")?;
+        return Ok(None);
+    }
+    terminal::disable_raw_mode()?;
+    execute!(io::stdout(), LeaveAlternateScreen, Show)?;
+    println!("Matching files:");
+    for (idx, m) in matches.iter().enumerate() {
+        println!("  {}. @{}", idx + 1, m.path);
+    }
+    print!("Choose file [1]: ");
+    io::stdout().flush()?;
+    let mut s = String::new();
+    io::stdin().read_line(&mut s)?;
+    execute!(io::stdout(), EnterAlternateScreen, Hide)?;
+    terminal::enable_raw_mode()?;
+    let choice = s.trim().parse::<usize>().unwrap_or(1);
+    Ok(matches
+        .get(choice.saturating_sub(1))
+        .map(|m| m.path.clone()))
+}
+
+fn prompt_message(label: &str) -> Result<()> {
+    terminal::disable_raw_mode()?;
+    execute!(io::stdout(), LeaveAlternateScreen, Show)?;
+    println!("{}", label);
+    let mut s = String::new();
+    io::stdin().read_line(&mut s)?;
+    execute!(io::stdout(), EnterAlternateScreen, Hide)?;
+    terminal::enable_raw_mode()?;
+    Ok(())
+}
+
+fn prompt_prefilled(label: &str, current: &str) -> Result<String> {
+    terminal::disable_raw_mode()?;
+    execute!(io::stdout(), LeaveAlternateScreen, Show)?;
+    println!("{}", label);
+    println!("Current: {}", current);
+    print!("New value, or Enter to keep current: ");
+    io::stdout().flush()?;
+    let mut s = String::new();
+    io::stdin().read_line(&mut s)?;
+    execute!(io::stdout(), EnterAlternateScreen, Hide)?;
+    terminal::enable_raw_mode()?;
+    let value = s.trim_end().to_string();
+    if value.trim().is_empty() {
+        Ok(current.to_string())
+    } else {
+        Ok(value)
+    }
 }
 
 fn prompt(label: &str) -> Result<String> {

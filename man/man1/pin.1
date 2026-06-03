@@ -10,8 +10,8 @@ Pin keeps a tiny append-only todo log in the current folder or git worktree. It 
 Core rule: agents report progress; humans pin task truth. Agent progress never marks work done.
 .SH COMMANDS
 .TP
-.B add|a TITLE [-p PRIORITY] [-t TAG]
-Add a task to the active session.
+.B add|a TITLE [-p PRIORITY] [-t TAG] [-F FILE_OR_QUERY]
+Add a task to the active session. TITLE may include @file references resolved with fuzzy matching.
 .TP
 .B list|ls
 List tasks in the active session.
@@ -33,6 +33,15 @@ Record an agent report and move the task to review.
 .TP
 .B brief|br
 Print a pasteable handoff for Claude/Codex.
+.TP
+.B files|find QUERY [-n LIMIT]
+Fuzzy-search project files and print copy-pasteable @paths.
+.TP
+.B ref|file|attach ID FILE_OR_QUERY ...
+Attach file references to a task by exact path or fuzzy query.
+.TP
+.B unref|rmref|detach ID FILE_OR_QUERY ...
+Remove file references from a task by exact path or fuzzy query.
 .TP
 .B start|s ID, review|r ID, fail|f ID REASON, block|b ID REASON, verified|ok ID [NOTE], done|d ID, cancel|c ID
 Human-owned status changes. Use done for successfully closed work and cancel for work that no longer applies.

@@ -84,3 +84,29 @@ pin c|cancel|cancelled 1
 ## UI
 
 List view is simple. Task details show agent progress and notes. `brief` produces a deterministic handoff for Claude/Codex.
+
+## File references and fuzzy search
+
+Pin supports lightweight file references attached to tasks.
+
+Commands:
+
+```bash
+pin files <query>
+pin find <query>
+pin add "Fix bug in @authlog"
+pin add "Validate token refresh" -F tokref
+pin ref 1 src/auth/login.rs
+pin unref 1 src/auth/login.rs
+```
+
+Rules:
+
+- File search is rooted at the detected project/worktree root.
+- Search is fuzzy and matches ordered characters, exact substrings, path boundaries, and filename matches.
+- No external tools are required.
+- Common noisy directories such as `.git`, `.pin`, `target`, `node_modules`, `dist`, `.next`, `.venv`, and `__pycache__` are skipped.
+- `@query` tokens in task titles, notes, status reasons, and agent progress are resolved to file references.
+- Explicit `-F/--file`, `ref`, and `unref` accept exact paths or fuzzy queries.
+- Task list remains simple; file references are shown in `pin show <id>` and `pin brief`.
+- In the TUI/overlay, `@` opens a fuzzy file search for the selected task.

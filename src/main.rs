@@ -1,3 +1,4 @@
+mod file_refs;
 mod model;
 mod ops;
 mod project;
@@ -41,6 +42,9 @@ enum Cmd {
         /// Add one or more tags. Can be repeated or comma-separated.
         #[arg(short = 't', long = "tag")]
         tags: Vec<String>,
+        /// Attach files by exact path or fuzzy query. Can be repeated or comma-separated.
+        #[arg(short = 'F', long = "file")]
+        files: Vec<String>,
     },
     #[command(alias = "ls")]
     List {
@@ -111,6 +115,25 @@ enum Cmd {
     Untag {
         id: u64,
         tags: Vec<String>,
+    },
+    /// Fuzzy-search project files and print copy-pasteable @paths.
+    #[command(alias = "find")]
+    Files {
+        query: String,
+        #[arg(short = 'n', long, default_value_t = 20)]
+        limit: usize,
+    },
+    /// Attach file references to a task by exact path or fuzzy query.
+    #[command(alias = "file", alias = "attach")]
+    Ref {
+        id: u64,
+        files: Vec<String>,
+    },
+    /// Remove file references from a task by exact path or fuzzy query.
+    #[command(alias = "rmref", alias = "detach")]
+    Unref {
+        id: u64,
+        files: Vec<String>,
     },
     /// Record agent progress without changing human task truth.
     #[command(alias = "ag", alias = "progress")]
@@ -195,6 +218,7 @@ fn run() -> Result<()> {
             priority,
             agent,
             tags,
+            files,
         } => {
             let created = storage::init_project(&root)?;
             register_best_effort(&root);
@@ -209,6 +233,7 @@ fn run() -> Result<()> {
                 agent,
                 tags,
                 Some(session.clone().unwrap_or_else(|| "default".to_string())),
+                files,
             )?;
             println!("Added task #{}: {}", id, title);
         }
@@ -253,6 +278,19 @@ fn run() -> Result<()> {
         Cmd::Untag { id, tags } => {
             ops::remove_tags(&root, id, tags)?;
             println!("Removed tags from task #{}.", id);
+        }
+        Cmd::Files { query, limit } => {
+            for m in file_refs::search(&root, &query, limit)? {
+                println!("@{}", m.path);
+            }
+        }
+        Cmd::Ref { id, files } => {
+            ops::add_files(&root, id, files)?;
+            println!("Attached files to task #{}.", id);
+        }
+        Cmd::Unref { id, files } => {
+            ops::remove_files(&root, id, files)?;
+            println!("Removed files from task #{}.", id);
         }
         Cmd::Agent {
             id,
