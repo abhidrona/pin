@@ -238,14 +238,25 @@ fn short_flags_and_aliases_work_for_daily_flow() {
         .success()
         .stdout(predicate::str::contains("Task moved to review"));
 
+    // The overview/list stays intentionally simple: it shows task truth, not full agent progress.
     cmd(&home)
         .current_dir(fscrm.path())
         .args(["-s", "recover-filters", "view"])
         .assert()
         .success()
         .stdout(predicate::str::contains("REVIEW"))
-        .stdout(predicate::str::contains("reported"));
+        .stdout(predicate::str::contains("Fix Recover filters"));
 
+    // Agent progress is visible in task details.
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["-s", "recover-filters", "show", "1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("claude: reported"))
+        .stdout(predicate::str::contains("Changed URL params"));
+
+    // `reported` remains a convenient status alias for tasks moved to review by agent reports.
     cmd(&home)
         .current_dir(fscrm.path())
         .args(["all", "--status", "reported"])
