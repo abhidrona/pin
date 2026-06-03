@@ -1,0 +1,44 @@
+.TH PIN 1
+.SH NAME
+pin \- session-based terminal todo HUD for human-agent collaboration
+.SH SYNOPSIS
+.B pin
+[--session SESSION] COMMAND [ARGS]
+.SH DESCRIPTION
+Pin keeps a tiny append-only todo log in the current folder or git worktree. It is designed for humans working with Claude, Codex, tmux panes, and worktrees.
+.PP
+Core rule: agents report progress; humans pin task truth. Agent progress never marks work done.
+.SH COMMANDS
+.TP
+.B add|a TITLE [-p PRIORITY] [-t TAG]
+Add a task to the active session.
+.TP
+.B list|ls
+List tasks in the active session.
+.TP
+.B show [ID]
+Show the session HUD, or task details when ID is provided.
+.TP
+.B overlay|o
+Open the terminal HUD. In tmux this uses display-popup.
+.TP
+.B sessions|ss
+List active sessions in the current folder.
+.TP
+.B agent|ag ID AGENT STATUS BODY
+Record agent progress without changing human task status.
+.TP
+.B report|ar ID -a AGENT BODY
+Record an agent report and move the task to review.
+.TP
+.B brief|br
+Print a pasteable handoff for Claude/Codex.
+.TP
+.B start|s ID, review|r ID, fail|f ID REASON, block|b ID REASON, verified|ok ID [NOTE], done|d ID, cancel|c ID
+Human-owned status changes. Use done for successfully closed work and cancel for work that no longer applies.
+.SH SESSIONS
+Use --session/-s or PIN_SESSION to scope work. Default session is "default".
+.SH STORAGE
+Per folder: .pin/meta.json and .pin/log.jsonl. Global registry: ~/.local/share/pin/registry.jsonl.
+.SH LICENSE
+MIT

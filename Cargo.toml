@@ -1,0 +1,24 @@
+[package]
+name = "pin-hud"
+version = "0.1.0"
+edition = "2021"
+description = "Directory-aware terminal task tracker with a tmux/Ghostty-friendly overlay"
+license = "MIT"
+
+[[bin]]
+name = "pin"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde", "clock"] }
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.28"
+dirs = "5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
