@@ -6,7 +6,7 @@ Platforms: macOS, Linux
 
 License: MIT
 
-Pin keeps lightweight task notes attached to your current directory, session, or git worktree. It helps humans, Claude, Codex, and other agents collaborate without losing active work, review status, failures, or handoff context.
+Pin keeps lightweight task notes attached to your current directory, session, or git worktree. It helps humans, Claude, Codex, and other agents collaborate without losing active work, review status, failures, or handoff context. Pin is deliberately minimal. It's basically a scratchpad with discipline — a flat task list that keeps humans in control of status and gives agents a place to log what they did.
 
 Why it exists - Bridges the gap when you're juggling tmux panes / worktrees / multiple agents in one repo — gives everyone a shared, inspectable record of "what's in flight, who claimed it, what failed, what's ready for human review" without a database or daemon.
 
