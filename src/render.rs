@@ -69,6 +69,7 @@ pub fn hud(state: &ProjectState) -> String {
     section(&mut out, "BLOCKED", state, &[Status::Blocked]);
     section(&mut out, "TODO", state, &[Status::Todo]);
     section(&mut out, "VERIFIED", state, &[Status::Verified]);
+    section(&mut out, "DONE", state, &[Status::Done]);
     section(&mut out, "CANCELLED", state, &[Status::Cancelled]);
 
     if !state.tasks.values().any(|t| t.status.is_active()) {
@@ -306,16 +307,6 @@ fn brief_section(out: &mut String, title: &str, state: &ProjectState, statuses: 
                     .join(" ")
             ));
         }
-        if !t.files.is_empty() {
-            out.push_str(&format!(
-                "  Files: {}\n",
-                t.files
-                    .iter()
-                    .map(|f| format!("@{f}"))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ));
-        }
         if !t.agents.is_empty() {
             out.push_str("  Agent progress:\n");
             for a in t.agents.values() {
@@ -356,13 +347,6 @@ fn task_suffix(task: &Task) -> String {
     }
     for tag in &task.tags {
         parts.push(format!("#{}", tag));
-    }
-    if !task.files.is_empty() {
-        parts.push(format!(
-            "@{} file{}",
-            task.files.len(),
-            if task.files.len() == 1 { "" } else { "s" }
-        ));
     }
     if parts.is_empty() {
         String::new()

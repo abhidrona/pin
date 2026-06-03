@@ -1,6 +1,5 @@
-use crate::file_refs;
 use crate::model::{AgentStatus, Priority, ProjectState, Status, Task};
-use crate::{ops, storage};
+use crate::{files, ops, storage};
 use anyhow::Result;
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::event::{self, Event as CtEvent, KeyCode};
@@ -63,9 +62,9 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                         selected = selected.saturating_sub(1);
                     }
                     KeyCode::Char('a') if !details => {
-                        let title = prompt("Add task: ")?;
+                        let title = prompt(&root, "Add task", "")?;
                         if !title.trim().is_empty() {
-                            let tags = prompt("Tags optional, comma-separated: ")?;
+                            let tags = prompt(&root, "Tags optional, comma-separated", "")?;
                             let _ = ops::add(
                                 &root,
                                 title,
@@ -79,11 +78,14 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                     }
                     KeyCode::Char('e') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            if let Some(current) = current_title(&root, id) {
-                                let title = prompt_prefilled("Edit title", &current)?;
-                                if !title.trim().is_empty() {
-                                    let _ = ops::set_title(&root, id, title);
-                                }
+                            let existing = state
+                                .tasks
+                                .get(&id)
+                                .map(|task| task.title.clone())
+                                .unwrap_or_default();
+                            let title = prompt(&root, "Edit title", &existing)?;
+                            if !title.trim().is_empty() {
+                                let _ = ops::set_title(&root, id, title);
                             }
                         }
                     }
@@ -95,7 +97,7 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                     }
                     KeyCode::Char('v') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            let msg = prompt("Verified note optional: ")?;
+                            let msg = prompt(&root, "Verified note optional", "")?;
                             let body = if msg.trim().is_empty() {
                                 None
                             } else {
@@ -106,13 +108,13 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                     }
                     KeyCode::Char('f') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            let msg = prompt("Failure reason: ")?;
+                            let msg = prompt(&root, "Failure reason", "")?;
                             let _ = ops::status(&root, id, Status::Failed, Some(msg));
                         }
                     }
                     KeyCode::Char('b') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            let msg = prompt("Blocked reason: ")?;
+                            let msg = prompt(&root, "Blocked reason", "")?;
                             let _ = ops::status(&root, id, Status::Blocked, Some(msg));
                         }
                     }
@@ -124,7 +126,7 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                     }
                     KeyCode::Char('n') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            let msg = prompt("Human note: ")?;
+                            let msg = prompt(&root, "Human note", "")?;
                             if !msg.trim().is_empty() {
                                 let _ = ops::note(&root, id, msg, None);
                             }
@@ -132,24 +134,30 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
                     }
                     KeyCode::Char('t') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            let tags = prompt("Add tags, comma-separated: ")?;
+                            let tags = prompt(&root, "Add tags, comma-separated", "")?;
                             let _ = ops::add_tags(&root, id, vec![tags]);
                         }
                     }
                     KeyCode::Char('@') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            if let Some(file) = pick_file(&root)? {
-                                let _ = ops::add_files(&root, id, vec![file]);
+                            let query = prompt(&root, "Attach file", "@")?;
+                            let query = query.trim().trim_start_matches('@').to_string();
+                            if !query.is_empty() {
+                                let _ = ops::add_files(&root, id, vec![query]);
                             }
                         }
                     }
                     KeyCode::Char('A') | KeyCode::Char('G') => {
                         if let Some(id) = visible_ids.get(selected).copied() {
-                            let agent = prompt("Agent name: ")?;
-                            let status_raw = prompt("Agent status (assigned|working|reported|needs-input|failed|stopped): ")?;
+                            let agent = prompt(&root, "Agent name", "")?;
+                            let status_raw = prompt(
+                                &root,
+                                "Agent status (assigned|working|reported|needs-input|failed|stopped)",
+                                "reported",
+                            )?;
                             let status =
                                 parse_agent_status(&status_raw).unwrap_or(AgentStatus::Reported);
-                            let msg = prompt("Agent progress: ")?;
+                            let msg = prompt(&root, "Agent progress", "")?;
                             if status == AgentStatus::Reported {
                                 let _ = ops::agent_report(&root, id, agent, msg);
                             } else {
@@ -212,7 +220,7 @@ fn draw_list(
     queue!(
         stdout,
         MoveTo(x + w - 40, y + 1),
-        Print("q close  Enter details  a add  A agent")
+        Print("q close  Enter details  a add  @ file  A agent")
     )?;
     queue!(
         stdout,
@@ -291,9 +299,9 @@ fn draw_list(
         }
     }
     let help = if show_help {
-        "j/k move · Enter details · a add · @ file · A agent · s start · r review · v verify · f fail · b block · c cancel · d done · n note · t tags · ? hide"
+        "j/k move · Enter details · a add · A agent · s start · r review · v verify · f fail · b block · c cancel · d done · n note · t tags · ? hide"
     } else {
-        "? help · Enter details · a add · @ file · A agent · n note · v verify · f fail · c cancel · q close"
+        "? help · Enter details · a add · A agent · n note · v verify · f fail · c cancel · q close"
     };
     queue!(
         stdout,
@@ -356,29 +364,23 @@ fn draw_detail(
                     .join(" ")
             }
         ),
+        format!(
+            "Files: {}",
+            if task.files.is_empty() {
+                "none".into()
+            } else {
+                task.files
+                    .iter()
+                    .map(|f| format!("@{f}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }
+        ),
     ] {
         queue!(
             stdout,
             MoveTo(x + 2, line),
             Print(trunc(&text, (w - 4) as usize))
-        )?;
-        line += 1;
-    }
-    if !task.files.is_empty() {
-        queue!(
-            stdout,
-            MoveTo(x + 2, line),
-            Print(trunc(
-                &format!(
-                    "Files: {}",
-                    task.files
-                        .iter()
-                        .map(|f| format!("@{f}"))
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                ),
-                (w - 4) as usize
-            ))
         )?;
         line += 1;
     }
@@ -441,7 +443,7 @@ fn draw_detail(
         }
     }
     let help = if show_help {
-        "Esc back · @ file · A agent progress/report · n note · r review · v verify · f fail · b block · c cancel · d done · e edit · ? hide"
+        "Esc back · @ file · A agent · n note · r review · v verify · f fail · c cancel · d done · e edit · ? hide"
     } else {
         "Esc back · @ file · A agent · n note · v verify · f fail · c cancel · q close"
     };
@@ -478,6 +480,7 @@ fn sections() -> Vec<(&'static str, Vec<Status>)> {
         ("BLOCKED", vec![Status::Blocked]),
         ("TODO", vec![Status::Todo]),
         ("VERIFIED", vec![Status::Verified]),
+        ("DONE", vec![Status::Done]),
         ("CANCELLED", vec![Status::Cancelled]),
     ]
 }
@@ -532,80 +535,115 @@ fn draw_box(stdout: &mut io::Stdout, x: u16, y: u16, w: u16, h: u16) -> Result<(
     Ok(())
 }
 
-fn current_title(root: &Path, id: u64) -> Option<String> {
-    storage::load_state(root)
-        .ok()
-        .and_then(|state| state.tasks.get(&id).map(|t| t.title.clone()))
+fn prompt(root: &Path, label: &str, initial: &str) -> Result<String> {
+    let mut stdout = io::stdout();
+    let mut input = initial.to_string();
+    let mut suggestion_idx = 0usize;
+
+    loop {
+        let active = files::active_at_query(&input);
+        let suggestions = active
+            .as_ref()
+            .map(|(_, query)| files::search(root, query, 6))
+            .unwrap_or_default();
+        if suggestion_idx >= suggestions.len() {
+            suggestion_idx = suggestions.len().saturating_sub(1);
+        }
+
+        let (cols, rows) = terminal::size()?;
+        let max_w = cols.saturating_sub(4).max(30);
+        let w = max_w.min(88);
+        let wanted_h = (suggestions.len() as u16 + 6).clamp(8, 14);
+        let max_h = rows.saturating_sub(2).max(8);
+        let h = wanted_h.min(max_h);
+        let x = (cols.saturating_sub(w)) / 2;
+        let y = (rows.saturating_sub(h)) / 2;
+        let inner_w = w.saturating_sub(4) as usize;
+
+        clear_rect(&mut stdout, x, y, w, h)?;
+        draw_box(&mut stdout, x, y, w, h)?;
+        queue!(
+            stdout,
+            MoveTo(x + 2, y + 1),
+            SetAttribute(Attribute::Bold),
+            Print(label),
+            SetAttribute(Attribute::Reset)
+        )?;
+        queue!(stdout, MoveTo(x + 2, y + 2), Print(trunc(&input, inner_w)))?;
+        queue!(
+            stdout,
+            MoveTo(x + 2, y + 3),
+            Print(trunc(
+                "Enter select/save · Tab complete @file · Esc cancel",
+                inner_w
+            ))
+        )?;
+
+        let max_suggestions = h.saturating_sub(6) as usize;
+        for (idx, item) in suggestions.iter().take(max_suggestions).enumerate() {
+            let line = y + 5 + idx as u16;
+            queue!(stdout, MoveTo(x + 2, line))?;
+            if idx == suggestion_idx {
+                queue!(stdout, SetAttribute(Attribute::Reverse))?;
+            }
+            queue!(
+                stdout,
+                Print(format!(
+                    "{:<width$}",
+                    trunc(&format!("@{}", item.path), inner_w),
+                    width = inner_w
+                ))
+            )?;
+            if idx == suggestion_idx {
+                queue!(stdout, SetAttribute(Attribute::Reset))?;
+            }
+        }
+        stdout.flush()?;
+
+        if let CtEvent::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Esc => return Ok(String::new()),
+                KeyCode::Enter => {
+                    if let (Some((start, _)), Some(item)) =
+                        (active, suggestions.get(suggestion_idx))
+                    {
+                        input = files::complete_at(&input, start, &item.path);
+                    }
+                    return Ok(input.trim_end().to_string());
+                }
+                KeyCode::Tab => {
+                    if let (Some((start, _)), Some(item)) =
+                        (active, suggestions.get(suggestion_idx))
+                    {
+                        input = files::complete_at(&input, start, &item.path);
+                    }
+                }
+                KeyCode::Up => suggestion_idx = suggestion_idx.saturating_sub(1),
+                KeyCode::Down => {
+                    if suggestion_idx + 1 < suggestions.len() {
+                        suggestion_idx += 1;
+                    }
+                }
+                KeyCode::Backspace => {
+                    input.pop();
+                    suggestion_idx = 0;
+                }
+                KeyCode::Char(ch) => {
+                    input.push(ch);
+                    suggestion_idx = 0;
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
-fn pick_file(root: &Path) -> Result<Option<String>> {
-    let query = prompt("Find file: ")?;
-    if query.trim().is_empty() {
-        return Ok(None);
+fn clear_rect(stdout: &mut io::Stdout, x: u16, y: u16, w: u16, h: u16) -> Result<()> {
+    let blank = " ".repeat(w as usize);
+    for row in 0..h {
+        queue!(stdout, MoveTo(x, y + row), Print(&blank))?;
     }
-    let matches = file_refs::search(root, &query, 10)?;
-    if matches.is_empty() {
-        prompt_message("No matching files. Press Enter to continue.")?;
-        return Ok(None);
-    }
-    terminal::disable_raw_mode()?;
-    execute!(io::stdout(), LeaveAlternateScreen, Show)?;
-    println!("Matching files:");
-    for (idx, m) in matches.iter().enumerate() {
-        println!("  {}. @{}", idx + 1, m.path);
-    }
-    print!("Choose file [1]: ");
-    io::stdout().flush()?;
-    let mut s = String::new();
-    io::stdin().read_line(&mut s)?;
-    execute!(io::stdout(), EnterAlternateScreen, Hide)?;
-    terminal::enable_raw_mode()?;
-    let choice = s.trim().parse::<usize>().unwrap_or(1);
-    Ok(matches
-        .get(choice.saturating_sub(1))
-        .map(|m| m.path.clone()))
-}
-
-fn prompt_message(label: &str) -> Result<()> {
-    terminal::disable_raw_mode()?;
-    execute!(io::stdout(), LeaveAlternateScreen, Show)?;
-    println!("{}", label);
-    let mut s = String::new();
-    io::stdin().read_line(&mut s)?;
-    execute!(io::stdout(), EnterAlternateScreen, Hide)?;
-    terminal::enable_raw_mode()?;
     Ok(())
-}
-
-fn prompt_prefilled(label: &str, current: &str) -> Result<String> {
-    terminal::disable_raw_mode()?;
-    execute!(io::stdout(), LeaveAlternateScreen, Show)?;
-    println!("{}", label);
-    println!("Current: {}", current);
-    print!("New value, or Enter to keep current: ");
-    io::stdout().flush()?;
-    let mut s = String::new();
-    io::stdin().read_line(&mut s)?;
-    execute!(io::stdout(), EnterAlternateScreen, Hide)?;
-    terminal::enable_raw_mode()?;
-    let value = s.trim_end().to_string();
-    if value.trim().is_empty() {
-        Ok(current.to_string())
-    } else {
-        Ok(value)
-    }
-}
-
-fn prompt(label: &str) -> Result<String> {
-    terminal::disable_raw_mode()?;
-    execute!(io::stdout(), LeaveAlternateScreen, Show)?;
-    print!("{}", label);
-    io::stdout().flush()?;
-    let mut s = String::new();
-    io::stdin().read_line(&mut s)?;
-    execute!(io::stdout(), EnterAlternateScreen, Hide)?;
-    terminal::enable_raw_mode()?;
-    Ok(s.trim_end().to_string())
 }
 
 fn trunc(s: &str, max: usize) -> String {

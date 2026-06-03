@@ -30,7 +30,7 @@ pin report 1 -a claude "Changed URL params"
 
 ## Human status
 
-`done` closes successfully. `cancel` closes a task that no longer applies.
+`done` / `complete` closes successfully. `cancel` closes a task that no longer applies.
 
 ```bash
 pin s 1
@@ -54,28 +54,49 @@ Each worktree gets its own `.pin/`. Use sessions inside a worktree for multiple 
 
 ## File references
 
-Search files with fuzzy matching:
+Pin supports lightweight file references using `@`. This is useful when a task, note, failure, or agent update is tied to a specific file. Typing `@query` in the overlay opens a centered fuzzy file picker; selecting a match keeps you inside the overlay.
+
+Search files from the terminal:
 
 ```bash
 pin files auth
 pin find tokref
 ```
 
-Use `@` references in task text, notes, failures, and agent progress:
+Output is copy-pasteable:
+
+```text
+@src/auth/login.rs
+@src/auth/token_refresh.rs
+@tests/auth/login_smoke_test.rs
+```
+
+Use fuzzy `@` references while adding or updating tasks:
 
 ```bash
-pin a "Fix redirect in @lgn"
-pin note 1 "Repro in @lgnsmk"
+pin a "Fix redirect in @lgn" -t auth
+pin n 1 "Repro is in @lgnsmk"
 pin ag 1 claude working "Checking @tokref"
 pin f 1 "Still failing in @lgnsmk"
 ```
 
-Attach files explicitly by exact path or fuzzy query:
+Attach or remove files explicitly:
 
 ```bash
 pin a "Validate token refresh" -F tokref
-pin ref 1 lgn
+pin ref 1 src/auth/login.rs
 pin unref 1 src/auth/login.rs
 ```
 
-Inside `pin ui`, press `@` on a selected task to fuzzy-search files and attach one.
+Inside `pin overlay` / `pin ui`:
+
+```text
+a      add task
+e      edit selected task
+@      fuzzy-search and attach a file
+Tab    complete selected @file match
+Enter  select current @file match and save
+Esc    cancel the modal and stay in overlay
+```
+
+All add/edit/note/status actions keep you inside the overlay. The editor opens as a centered modal instead of dropping you back to the shell.

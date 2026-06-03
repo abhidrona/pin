@@ -134,3 +134,84 @@ fn cancel_missing_task_fails_and_does_not_append() {
 
     assert_eq!(read_log_lines(&project).len(), before);
 }
+
+#[test]
+fn complete_aliases_close_task_successfully() {
+    let home = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["a", "Complete auth redirect fix"])
+        .assert()
+        .success();
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["complete", "1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Done task #1"));
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["ls", "--active"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Complete auth redirect fix").not());
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["ls", "--status", "complete"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[1] done"))
+        .stdout(predicate::str::contains("Complete auth redirect fix"));
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["show", "1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Status: done"))
+        .stdout(predicate::str::contains("Already closed."));
+}
+
+#[test]
+fn completed_and_closed_aliases_also_mark_done() {
+    let home = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["a", "Finish token refresh cleanup"])
+        .assert()
+        .success();
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["a", "Close stale auth spike"])
+        .assert()
+        .success();
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["completed", "1"])
+        .assert()
+        .success();
+
+    cmd(&home)
+        .current_dir(project.path())
+        .args(["closed", "2"])
+        .assert()
+        .success();
+
+    let events = read_log_lines(&project);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e["op"] == "task.status" && e["status"] == "done")
+            .count(),
+        2
+    );
+}

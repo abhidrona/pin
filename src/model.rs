@@ -16,6 +16,7 @@ pub enum Status {
     Failed,
     Blocked,
     Cancelled,
+    #[value(alias = "complete", alias = "completed", alias = "closed")]
     Done,
 }
 
@@ -118,6 +119,7 @@ pub struct Task {
     /// Optional initial owner/agent for compatibility with older logs.
     pub agent: Option<String>,
     pub tags: Vec<String>,
+    /// Files referenced by this task through @path tokens or explicit refs.
     pub files: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -181,6 +183,15 @@ impl Event {
     }
 }
 
+fn add_files(existing: &mut Vec<String>, new_files: Vec<String>) {
+    for file in new_files {
+        if !file.trim().is_empty() && !existing.contains(&file) {
+            existing.push(file);
+        }
+    }
+    existing.sort();
+}
+
 #[derive(Debug, Clone)]
 pub struct ProjectState {
     pub meta: ProjectMeta,
@@ -234,14 +245,7 @@ impl ProjectState {
                     if let (Some(id), Some(title)) = (ev.id, ev.title.clone()) {
                         if let Some(t) = tasks.get_mut(&id) {
                             t.title = title;
-                            if let Some(files) = ev.files.clone() {
-                                for file in files {
-                                    if !t.files.contains(&file) {
-                                        t.files.push(file);
-                                    }
-                                }
-                                t.files.sort();
-                            }
+                            add_files(&mut t.files, ev.files.clone().unwrap_or_default());
                             t.updated_at = ev.ts;
                         }
                     }
@@ -250,6 +254,7 @@ impl ProjectState {
                     if let (Some(id), Some(status)) = (ev.id, ev.status) {
                         if let Some(t) = tasks.get_mut(&id) {
                             t.status = status;
+                            add_files(&mut t.files, ev.files.clone().unwrap_or_default());
                             t.updated_at = ev.ts;
                         }
                     }
@@ -261,14 +266,7 @@ impl ProjectState {
                                 agent: None,
                                 body,
                             });
-                            if let Some(files) = ev.files.clone() {
-                                for file in files {
-                                    if !t.files.contains(&file) {
-                                        t.files.push(file);
-                                    }
-                                }
-                                t.files.sort();
-                            }
+                            add_files(&mut t.files, ev.files.clone().unwrap_or_default());
                             t.updated_at = ev.ts;
                         }
                     }
@@ -286,14 +284,7 @@ impl ProjectState {
                                 agent: ev.agent.clone(),
                                 body,
                             });
-                            if let Some(files) = ev.files.clone() {
-                                for file in files {
-                                    if !t.files.contains(&file) {
-                                        t.files.push(file);
-                                    }
-                                }
-                                t.files.sort();
-                            }
+                            add_files(&mut t.files, ev.files.clone().unwrap_or_default());
                             t.updated_at = ev.ts;
                         }
                     }
@@ -320,14 +311,7 @@ impl ProjectState {
                                     body,
                                 });
                             }
-                            if let Some(files) = ev.files.clone() {
-                                for file in files {
-                                    if !t.files.contains(&file) {
-                                        t.files.push(file);
-                                    }
-                                }
-                                t.files.sort();
-                            }
+                            add_files(&mut t.files, ev.files.clone().unwrap_or_default());
                             t.updated_at = ev.ts;
                         }
                     }
@@ -354,14 +338,9 @@ impl ProjectState {
                     }
                 }
                 "task.files.add" => {
-                    if let (Some(id), Some(files)) = (ev.id, ev.files.clone()) {
+                    if let Some(id) = ev.id {
                         if let Some(t) = tasks.get_mut(&id) {
-                            for file in files {
-                                if !t.files.contains(&file) {
-                                    t.files.push(file);
-                                }
-                            }
-                            t.files.sort();
+                            add_files(&mut t.files, ev.files.clone().unwrap_or_default());
                             t.updated_at = ev.ts;
                         }
                     }
