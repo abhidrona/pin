@@ -70,8 +70,20 @@ fn human_can_mark_task_done_or_cancelled_and_active_list_excludes_both() {
         .stdout(predicate::str::contains("Remove obsolete auth experiment"));
 
     let events = read_log_lines(&project);
-    assert_eq!(events.iter().filter(|e| e["op"] == "task.status" && e["status"] == "done").count(), 1);
-    assert_eq!(events.iter().filter(|e| e["op"] == "task.status" && e["status"] == "cancelled").count(), 1);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e["op"] == "task.status" && e["status"] == "done")
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e["op"] == "task.status" && e["status"] == "cancelled")
+            .count(),
+        1
+    );
 }
 
 #[test]

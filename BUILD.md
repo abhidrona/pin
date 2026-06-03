@@ -24,6 +24,36 @@ Equivalent:
 cargo build
 ```
 
+
+## Format
+
+Fix formatting before committing or releasing:
+
+```bash
+make fmt
+```
+
+Aliases are also available:
+
+```bash
+make format
+make fix-format
+```
+
+Check formatting without changing files:
+
+```bash
+make fmt-check
+```
+
+Run the full local release gate:
+
+```bash
+make release-check
+```
+
+This runs formatting checks, clippy, tests, and the optimized release build.
+
 ## Test
 
 ```bash

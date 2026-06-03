@@ -50,7 +50,9 @@ pub fn load_projects() -> Result<Vec<RegistryEvent>> {
     let mut latest: BTreeMap<PathBuf, RegistryEvent> = BTreeMap::new();
     for line in reader.lines() {
         let line = line?;
-        if line.trim().is_empty() { continue; }
+        if line.trim().is_empty() {
+            continue;
+        }
         let ev: RegistryEvent = serde_json::from_str(&line)?;
         latest.insert(ev.root.clone(), ev);
     }

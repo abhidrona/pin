@@ -12,12 +12,17 @@ fn cmd(home: &TempDir) -> Command {
     c
 }
 
-fn project(prefix: &str) -> TempDir { Builder::new().prefix(prefix).tempdir().unwrap() }
+fn project(prefix: &str) -> TempDir {
+    Builder::new().prefix(prefix).tempdir().unwrap()
+}
 
 fn read_log_lines(project: &TempDir) -> Vec<Value> {
     let log_path = project.path().join(".pin/log.jsonl");
     let data = fs::read_to_string(&log_path).unwrap();
-    data.lines().filter(|line| !line.trim().is_empty()).map(|line| serde_json::from_str::<Value>(line).unwrap()).collect()
+    data.lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .collect()
 }
 
 #[test]
@@ -27,7 +32,16 @@ fn agent_progress_is_separate_from_task_status_and_visible_in_detail() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args(["-s", "recover-filters", "a", "Fix Recover filters", "-p", "high", "-t", "ui"])
+        .args([
+            "-s",
+            "recover-filters",
+            "a",
+            "Fix Recover filters",
+            "-p",
+            "high",
+            "-t",
+            "ui",
+        ])
         .assert()
         .success();
 
@@ -39,7 +53,15 @@ fn agent_progress_is_separate_from_task_status_and_visible_in_detail() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args(["-s", "recover-filters", "ag", "1", "claude", "working", "Changing Recover page URL params"])
+        .args([
+            "-s",
+            "recover-filters",
+            "ag",
+            "1",
+            "claude",
+            "working",
+            "Changing Recover page URL params",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("working"));
@@ -65,7 +87,11 @@ fn agent_report_moves_task_to_review_but_does_not_mark_done() {
     let home = TempDir::new().unwrap();
     let fscrm = project("fscrm");
 
-    cmd(&home).current_dir(fscrm.path()).args(["a", "Validate backend filter support"]).assert().success();
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["a", "Validate backend filter support"])
+        .assert()
+        .success();
 
     cmd(&home)
         .current_dir(fscrm.path())
@@ -96,10 +122,26 @@ fn sessions_command_summarizes_multiple_workstreams_in_same_folder() {
     let home = TempDir::new().unwrap();
     let fscrm = project("fscrm");
 
-    cmd(&home).current_dir(fscrm.path()).args(["-s", "recover-filters", "a", "Fix failed filter"]).assert().success();
-    cmd(&home).current_dir(fscrm.path()).args(["-s", "recover-filters", "s", "1"]).assert().success();
-    cmd(&home).current_dir(fscrm.path()).args(["-s", "quote-room", "a", "Verify quote room flow"]).assert().success();
-    cmd(&home).current_dir(fscrm.path()).args(["-s", "quote-room", "r", "2"]).assert().success();
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["-s", "recover-filters", "a", "Fix failed filter"])
+        .assert()
+        .success();
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["-s", "recover-filters", "s", "1"])
+        .assert()
+        .success();
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["-s", "quote-room", "a", "Verify quote room flow"])
+        .assert()
+        .success();
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["-s", "quote-room", "r", "2"])
+        .assert()
+        .success();
 
     cmd(&home)
         .current_dir(fscrm.path())
@@ -118,8 +160,16 @@ fn mark_ls_is_session_scoped_and_simple() {
     let home = TempDir::new().unwrap();
     let fscrm = project("fscrm");
 
-    cmd(&home).current_dir(fscrm.path()).args(["-s", "recover-filters", "a", "Fix failed filter"]).assert().success();
-    cmd(&home).current_dir(fscrm.path()).args(["-s", "quote-room", "a", "Verify quote room flow"]).assert().success();
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["-s", "recover-filters", "a", "Fix failed filter"])
+        .assert()
+        .success();
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["-s", "quote-room", "a", "Verify quote room flow"])
+        .assert()
+        .success();
 
     cmd(&home)
         .current_dir(fscrm.path())
@@ -135,7 +185,11 @@ fn negative_agent_progress_rejects_blank_body_and_does_not_append() {
     let home = TempDir::new().unwrap();
     let fscrm = project("fscrm");
 
-    cmd(&home).current_dir(fscrm.path()).args(["a", "Fix Recover filters"]).assert().success();
+    cmd(&home)
+        .current_dir(fscrm.path())
+        .args(["a", "Fix Recover filters"])
+        .assert()
+        .success();
     let before = read_log_lines(&fscrm).len();
 
     cmd(&home)
@@ -143,7 +197,9 @@ fn negative_agent_progress_rejects_blank_body_and_does_not_append() {
         .args(["ag", "1", "claude", "working", "   "])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Agent progress note cannot be empty"));
+        .stderr(predicate::str::contains(
+            "Agent progress note cannot be empty",
+        ));
 
     assert_eq!(read_log_lines(&fscrm).len(), before);
 }
