@@ -448,9 +448,11 @@ General rules:
 Before opening a PR, run:
 
 ```bash
-make test
-make release
+make fix
+make release-check
 ```
+
+`make fix` runs `cargo fmt` and safe Clippy fixes. `make release-check` runs formatting checks, Clippy with warnings denied, tests, and the release build.
 
 ## License
 
