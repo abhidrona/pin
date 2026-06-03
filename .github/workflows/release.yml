@@ -21,6 +21,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,6 +43,7 @@ jobs:
   create-tag:
     name: Create release tag
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: test
     if: github.event_name == 'workflow_dispatch'
     steps:
@@ -78,11 +80,15 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          - os: macos-13
+          # Use macos-latest for both Darwin targets. macos-13 Intel runners can sit
+          # queued for a long time on GitHub-hosted Actions. Cross-building both
+          # Apple targets on the current macOS image avoids the stuck-runner issue.
+          - os: macos-latest
             target: x86_64-apple-darwin
-          - os: macos-14
+          - os: macos-latest
             target: aarch64-apple-darwin
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - name: Resolve release version
         id: rel
@@ -136,6 +142,7 @@ jobs:
     name: Publish GitHub release
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: |
       always() &&
       needs.build.result == 'success'
