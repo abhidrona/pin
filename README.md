@@ -52,7 +52,7 @@ Directory / Worktree
 - **Session** is a workstream, such as `auth-refresh`, `login-flow`, or `default`.
 - **Task list** stays simple so you can scan quickly.
 - **Task details** hold agent progress, human notes, and failure context.
-- **Task status** is human-owned truth: `todo`, `doing`, `review`, `failed`, `blocked`, `verified`, `cancelled`, `done`.
+- **Task status** is human-owned truth: `todo`, `doing`, `review`, `failed`, `blocked`, `verified`, `done`/`complete`, `cancelled`.
 - **Agent progress** is what Claude/Codex reported: `assigned`, `working`, `reported`, `needs-input`, `failed`, `stopped`.
 
 ---
@@ -329,6 +329,7 @@ pin f 1 "redirect still fails"     # failed; reason required
 pin b 1 "waiting on backend"      # blocked; reason required
 pin ok 1 "checked in browser"     # verified, but not closed
 pin d 1                          # done / closed successfully
+pin complete 1                   # same as done
 pin c 1                          # cancelled / closed without completion
 ```
 
@@ -341,11 +342,13 @@ pin fail 1 "reason"
 pin block 1 "reason"
 pin verified 1 "note"
 pin done 1
+pin complete 1
+pin completed 1
 pin cancel 1
 pin cancelled 1
 ```
 
-Use `verified` when you checked the work and want to remember that it passed. Use `done` when the task is closed. Use `cancel` when the task no longer applies.
+Use `verified` when you checked the work and want to remember that it passed. Use `done` / `complete` when the task is closed successfully. Use `cancel` when the task no longer applies.
 
 ---
 
@@ -473,6 +476,55 @@ make install PREFIX=$HOME/.local
 See [`BUILD.md`](BUILD.md) and [`docs/BREW.md`](docs/BREW.md) for release, Linux binary, and Homebrew tap notes.
 
 ---
+
+## File references
+
+Pin supports lightweight file references using `@`. This is useful when a task, note, failure, or agent update is tied to a specific file. Typing `@query` in the overlay opens a centered fuzzy file picker; selecting a match keeps you inside the overlay.
+
+Search files from the terminal:
+
+```bash
+pin files auth
+pin find tokref
+```
+
+Output is copy-pasteable:
+
+```text
+@src/auth/login.rs
+@src/auth/token_refresh.rs
+@tests/auth/login_smoke_test.rs
+```
+
+Use fuzzy `@` references while adding or updating tasks:
+
+```bash
+pin a "Fix redirect in @lgn" -t auth
+pin n 1 "Repro is in @lgnsmk"
+pin ag 1 claude working "Checking @tokref"
+pin f 1 "Still failing in @lgnsmk"
+```
+
+Attach or remove files explicitly:
+
+```bash
+pin a "Validate token refresh" -F tokref
+pin ref 1 src/auth/login.rs
+pin unref 1 src/auth/login.rs
+```
+
+Inside `pin overlay` / `pin ui`:
+
+```text
+a      add task
+e      edit selected task
+@      fuzzy-search and attach a file
+Tab    complete selected @file match
+Enter  select current @file match and save
+Esc    cancel the modal and stay in overlay
+```
+
+All add/edit/note/status actions keep you inside the overlay. The editor opens as a centered modal instead of dropping you back to the shell.
 
 ## Contributing
 
