@@ -189,6 +189,7 @@ f         fail
 b         block
 d         done
 n         human note
+@         fuzzy-search and attach a file
 A / G     agent progress/report
 t         add tags
 ?         help
@@ -212,6 +213,7 @@ Status: failed
 Priority: high
 Session: auth-refresh
 Tags: #ui #backend
+Files: @src/auth/login.rs @tests/auth/login_smoke_test.rs
 
 Agent progress:
   claude: reported — Updated redirect handling after successful login
@@ -224,7 +226,47 @@ Next:
 Fix the failed task first. Inspect the human failure note and ask the agent for a scoped fix.
 ```
 
-The list view stays simple. Agent progress and human notes live in task details.
+The list view stays simple. Agent progress, file references, and human notes live in task details.
+
+---
+
+## File references
+
+Search project files with fuzzy matching:
+
+```bash
+pin files auth
+pin find tokref
+```
+
+Output is copy-pasteable:
+
+```text
+@src/auth/login.rs
+@src/auth/token_refresh.rs
+@tests/auth/login_smoke_test.rs
+```
+
+Reference files while adding tasks, notes, failures, or agent progress with `@`:
+
+```bash
+pin a "Fix redirect in @lgn" -t auth
+pin note 1 "Repro is in @lgnsmk"
+pin ag 1 claude working "Checking @tokref"
+pin f 1 "Still failing in @lgnsmk"
+```
+
+Pin resolves `@lgn`, `@tokref`, and similar tokens with fuzzy path matching and stores the matched file paths on the task. Exact paths also work.
+
+Attach or remove files explicitly:
+
+```bash
+pin a "Validate token refresh" -F tokref
+pin ref 1 lgn
+pin unref 1 src/auth/login.rs
+```
+
+Inside the overlay, press `@` on a selected task to fuzzy-search files and attach one. Edit prompts show the current value and keep it when you press Enter on an empty edit.
 
 ---
 

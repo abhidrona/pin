@@ -68,7 +68,7 @@ pin r|review 1
 pin f|fail 1 "reason"
 pin b|block 1 "reason"
 pin ok|verified 1 "note"
-pin d|done 1
+pin d|done|complete|completed 1
 pin c|cancel|cancelled 1
 ```
 
@@ -84,3 +84,52 @@ pin c|cancel|cancelled 1
 ## UI
 
 List view is simple. Task details show agent progress and notes. `brief` produces a deterministic handoff for Claude/Codex.
+
+## File references
+
+Pin supports lightweight file references using `@`. This is useful when a task, note, failure, or agent update is tied to a specific file. Typing `@query` in the overlay opens a centered fuzzy file picker; selecting a match keeps you inside the overlay.
+
+Search files from the terminal:
+
+```bash
+pin files auth
+pin find tokref
+```
+
+Output is copy-pasteable:
+
+```text
+@src/auth/login.rs
+@src/auth/token_refresh.rs
+@tests/auth/login_smoke_test.rs
+```
+
+Use fuzzy `@` references while adding or updating tasks:
+
+```bash
+pin a "Fix redirect in @lgn" -t auth
+pin n 1 "Repro is in @lgnsmk"
+pin ag 1 claude working "Checking @tokref"
+pin f 1 "Still failing in @lgnsmk"
+```
+
+Attach or remove files explicitly:
+
+```bash
+pin a "Validate token refresh" -F tokref
+pin ref 1 src/auth/login.rs
+pin unref 1 src/auth/login.rs
+```
+
+Inside `pin overlay` / `pin ui`:
+
+```text
+a      add task
+e      edit selected task
+@      fuzzy-search and attach a file
+Tab    complete selected @file match
+Enter  select current @file match and save
+Esc    cancel the modal and stay in overlay
+```
+
+All add/edit/note/status actions keep you inside the overlay. The editor opens as a centered modal instead of dropping you back to the shell.

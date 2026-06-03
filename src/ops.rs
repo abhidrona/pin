@@ -1,3 +1,4 @@
+use crate::files;
 use crate::model::{AgentStatus, Event, Priority, Status};
 use crate::storage::{append_event, load_state};
 use anyhow::{bail, Result};
@@ -10,8 +11,9 @@ pub fn add(
     agent: Option<String>,
     tags: Vec<String>,
     session: Option<String>,
+    file_refs: Vec<String>,
 ) -> Result<u64> {
-    let title = title.trim().to_string();
+    let title = files::replace_refs_in_text(root, title.trim());
     if title.is_empty() {
         bail!("Task title cannot be empty");
     }
@@ -19,7 +21,7 @@ pub fn add(
     let id = state.next_id;
     let mut ev = Event::now("task.add");
     ev.id = Some(id);
-    ev.title = Some(title);
+    ev.title = Some(title.clone());
     ev.priority = Some(priority);
     ev.agent = clean_optional(agent);
     ev.session = clean_optional(session).or_else(|| Some("default".to_string()));
@@ -27,19 +29,27 @@ pub fn add(
     if !tags.is_empty() {
         ev.tags = Some(tags);
     }
+    let files = collect_files(root, &title, file_refs);
+    if !files.is_empty() {
+        ev.files = Some(files);
+    }
     append_event(root, &ev)?;
     Ok(id)
 }
 
 pub fn set_title(root: &Path, id: u64, title: String) -> Result<()> {
-    let title = title.trim().to_string();
+    let title = files::replace_refs_in_text(root, title.trim());
     if title.is_empty() {
         bail!("Task title cannot be empty");
     }
     require_task(root, id)?;
     let mut ev = Event::now("task.title");
     ev.id = Some(id);
-    ev.title = Some(title);
+    ev.title = Some(title.clone());
+    let files = files::refs_in_text(root, &title);
+    if !files.is_empty() {
+        ev.files = Some(files);
+    }
     append_event(root, &ev)
 }
 
@@ -53,18 +63,29 @@ pub fn status(root: &Path, id: u64, status: Status, body: Option<String>) -> Res
     let mut ev = Event::now("task.status");
     ev.id = Some(id);
     ev.status = Some(status);
-    ev.body = body.map(|b| b.trim().to_string()).filter(|b| !b.is_empty());
+    ev.body = body
+        .map(|b| files::replace_refs_in_text(root, b.trim()))
+        .filter(|b| !b.is_empty());
+    let files = ev
+        .body
+        .as_deref()
+        .map(|body| files::refs_in_text(root, body))
+        .unwrap_or_default();
+    if !files.is_empty() {
+        ev.files = Some(files);
+    }
     append_event(root, &ev)
 }
 
 pub fn note(root: &Path, id: u64, body: String, agent: Option<String>) -> Result<()> {
-    let body = body.trim().to_string();
+    let body = files::replace_refs_in_text(root, body.trim());
     if body.is_empty() {
         bail!("Note cannot be empty");
     }
     require_task(root, id)?;
     let mut ev = Event::now("task.note");
     ev.id = Some(id);
+    ev.files = non_empty(files::refs_in_text(root, &body));
     ev.body = Some(body);
     ev.agent = clean_optional(agent);
     append_event(root, &ev)
@@ -94,6 +115,30 @@ pub fn remove_tags(root: &Path, id: u64, tags: Vec<String>) -> Result<()> {
     append_event(root, &ev)
 }
 
+pub fn add_files(root: &Path, id: u64, refs: Vec<String>) -> Result<()> {
+    let files = files::resolve_all(root, &refs);
+    if files.is_empty() {
+        bail!("At least one matching file is required");
+    }
+    require_task(root, id)?;
+    let mut ev = Event::now("task.files.add");
+    ev.id = Some(id);
+    ev.files = Some(files);
+    append_event(root, &ev)
+}
+
+pub fn remove_files(root: &Path, id: u64, refs: Vec<String>) -> Result<()> {
+    let files = files::resolve_all(root, &refs);
+    if files.is_empty() {
+        bail!("At least one matching file is required");
+    }
+    require_task(root, id)?;
+    let mut ev = Event::now("task.files.remove");
+    ev.id = Some(id);
+    ev.files = Some(files);
+    append_event(root, &ev)
+}
+
 pub fn agent_progress(
     root: &Path,
     id: u64,
@@ -105,7 +150,7 @@ pub fn agent_progress(
     if agent.is_empty() {
         bail!("Agent name cannot be empty");
     }
-    let body = body.trim().to_string();
+    let body = files::replace_refs_in_text(root, body.trim());
     if body.is_empty() {
         bail!("Agent progress note cannot be empty");
     }
@@ -114,6 +159,7 @@ pub fn agent_progress(
     ev.id = Some(id);
     ev.agent = Some(agent);
     ev.agent_status = Some(status);
+    ev.files = non_empty(files::refs_in_text(root, &body));
     ev.body = Some(body);
     append_event(root, &ev)
 }
@@ -127,7 +173,7 @@ pub fn agent_report(root: &Path, id: u64, agent: String, body: String) -> Result
     if agent.is_empty() {
         bail!("Agent name cannot be empty");
     }
-    let body = body.trim().to_string();
+    let body = files::replace_refs_in_text(root, body.trim());
     if body.is_empty() {
         bail!("Agent report cannot be empty");
     }
@@ -155,6 +201,25 @@ pub fn normalize_tags(raw: Vec<String>) -> Vec<String> {
     }
     tags.sort();
     tags
+}
+
+fn collect_files(root: &Path, text: &str, explicit: Vec<String>) -> Vec<String> {
+    let mut files = files::refs_in_text(root, text);
+    for file in files::resolve_all(root, &explicit) {
+        if !files.contains(&file) {
+            files.push(file);
+        }
+    }
+    files.sort();
+    files
+}
+
+fn non_empty<T>(items: Vec<T>) -> Option<Vec<T>> {
+    if items.is_empty() {
+        None
+    } else {
+        Some(items)
+    }
 }
 
 fn clean_optional(value: Option<String>) -> Option<String> {

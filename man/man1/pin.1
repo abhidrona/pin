@@ -34,11 +34,34 @@ Record an agent report and move the task to review.
 .B brief|br
 Print a pasteable handoff for Claude/Codex.
 .TP
-.B start|s ID, review|r ID, fail|f ID REASON, block|b ID REASON, verified|ok ID [NOTE], done|d ID, cancel|c ID
-Human-owned status changes. Use done for successfully closed work and cancel for work that no longer applies.
+.B start|s ID, review|r ID, fail|f ID REASON, block|b ID REASON, verified|ok ID [NOTE], done|d|complete|completed ID, cancel|c ID
+Human-owned status changes. Use done/complete for successfully closed work and cancel for work that no longer applies.
 .SH SESSIONS
 Use --session/-s or PIN_SESSION to scope work. Default session is "default".
 .SH STORAGE
 Per folder: .pin/meta.json and .pin/log.jsonl. Global registry: ~/.local/share/pin/registry.jsonl.
 .SH LICENSE
 MIT
+
+.SH FILE REFERENCES
+Search project files with:
+.PP
+.nf
+pin files auth
+pin find tokref
+.fi
+.PP
+Use @ references in task text, notes, failures, and agent progress:
+.PP
+.nf
+pin a "Fix redirect in @lgn" -t auth
+pin n 1 "Repro is in @lgnsmk"
+pin ag 1 claude working "Checking @tokref"
+.fi
+.PP
+Attach or remove files explicitly:
+.PP
+.nf
+pin ref 1 src/auth/login.rs
+pin unref 1 src/auth/login.rs
+.fi

@@ -1,3 +1,4 @@
+mod files;
 mod model;
 mod ops;
 mod project;
@@ -33,7 +34,7 @@ enum Cmd {
     Init,
     #[command(alias = "a")]
     Add {
-        title: String,
+        title: Option<String>,
         #[arg(short = 'p', long, value_enum, default_value_t = Priority::Normal)]
         priority: Priority,
         #[arg(long)]
@@ -41,6 +42,9 @@ enum Cmd {
         /// Add one or more tags. Can be repeated or comma-separated.
         #[arg(short = 't', long = "tag")]
         tags: Vec<String>,
+        /// Attach one or more files. Values are resolved with fuzzy search.
+        #[arg(short = 'F', long = "file")]
+        files: Vec<String>,
     },
     #[command(alias = "ls")]
     List {
@@ -91,7 +95,7 @@ enum Cmd {
     Cancel {
         id: u64,
     },
-    #[command(alias = "d")]
+    #[command(alias = "d", alias = "complete", alias = "completed", alias = "closed")]
     Done {
         id: u64,
     },
@@ -111,6 +115,17 @@ enum Cmd {
     Untag {
         id: u64,
         tags: Vec<String>,
+    },
+    /// Attach files to a task. Paths/queries are resolved with fuzzy search.
+    #[command(alias = "reference")]
+    Ref {
+        id: u64,
+        files: Vec<String>,
+    },
+    /// Remove file references from a task. Paths/queries are resolved with fuzzy search.
+    Unref {
+        id: u64,
+        files: Vec<String>,
     },
     /// Record agent progress without changing human task truth.
     #[command(alias = "ag", alias = "progress")]
@@ -162,6 +177,13 @@ enum Cmd {
         #[arg(short = 't', long = "tag")]
         tags: Vec<String>,
     },
+    /// Fuzzy-search project files and print copy-pasteable @file refs.
+    #[command(alias = "find")]
+    Files {
+        query: Option<String>,
+        #[arg(short = 'n', long, default_value_t = 20)]
+        limit: usize,
+    },
     TmuxInstall {
         #[arg(long, default_value = "T")]
         key: String,
@@ -195,12 +217,17 @@ fn run() -> Result<()> {
             priority,
             agent,
             tags,
+            files,
         } => {
             let created = storage::init_project(&root)?;
             register_best_effort(&root);
             if created {
                 println!("Initialized pin in {}", root.display());
             }
+            let title = match title {
+                Some(title) => title,
+                None => prompt_line("Add task: ")?,
+            };
             let tags = ops::normalize_tags(tags);
             let id = ops::add(
                 &root,
@@ -209,6 +236,7 @@ fn run() -> Result<()> {
                 agent,
                 tags,
                 Some(session.clone().unwrap_or_else(|| "default".to_string())),
+                files,
             )?;
             println!("Added task #{}: {}", id, title);
         }
@@ -253,6 +281,14 @@ fn run() -> Result<()> {
         Cmd::Untag { id, tags } => {
             ops::remove_tags(&root, id, tags)?;
             println!("Removed tags from task #{}.", id);
+        }
+        Cmd::Ref { id, files } => {
+            ops::add_files(&root, id, files)?;
+            println!("Attached files to task #{}.", id);
+        }
+        Cmd::Unref { id, files } => {
+            ops::remove_files(&root, id, files)?;
+            println!("Removed file references from task #{}.", id);
         }
         Cmd::Agent {
             id,
@@ -318,12 +354,26 @@ fn run() -> Result<()> {
             session.or_else(|| Some("default".to_string())),
             ops::normalize_tags(tags),
         )?,
+        Cmd::Files { query, limit } => {
+            for m in files::search(&root, query.as_deref().unwrap_or_default(), limit) {
+                println!("@{}", m.path);
+            }
+        }
         Cmd::TmuxInstall { key } => {
             println!("bind-key {} display-popup -w 80% -h 70% -E \"pin ui\"", key);
         }
     }
 
     Ok(())
+}
+
+fn prompt_line(label: &str) -> Result<String> {
+    use std::io::{self, Write};
+    print!("{label}");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim_end().to_string())
 }
 
 fn effective_session(cli_session: Option<String>) -> Option<String> {
