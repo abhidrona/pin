@@ -37,27 +37,21 @@ fn positive_full_session_workflow_across_fscrm_and_pomo() {
         .args(["a", "Fix Recover filters", "-p", "high"])
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "Added task #1: Fix Recover filters",
-        ));
+        .stdout(predicate::str::contains("Added task #1: Fix Recover filters"));
 
     cmd(&home)
         .current_dir(fscrm.path())
         .args(["add", "Validate backend filter support"])
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "Added task #2: Validate backend filter support",
-        ));
+        .stdout(predicate::str::contains("Added task #2: Validate backend filter support"));
 
     cmd(&home)
         .current_dir(fscrm.path())
         .args(["add", "Run browser smoke test"])
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "Added task #3: Run browser smoke test",
-        ));
+        .stdout(predicate::str::contains("Added task #3: Run browser smoke test"));
 
     cmd(&home)
         .current_dir(fscrm.path())
@@ -68,13 +62,7 @@ fn positive_full_session_workflow_across_fscrm_and_pomo() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args([
-            "note",
-            "1",
-            "--agent",
-            "claude",
-            "Changed Recover page URL params",
-        ])
+        .args(["note", "1", "--agent", "claude", "Changed Recover page URL params"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Added note to task #1"));
@@ -156,9 +144,7 @@ fn positive_full_session_workflow_across_fscrm_and_pomo() {
         .args(["add", "Fix notification newline escaping"])
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "Added task #1: Fix notification newline escaping",
-        ));
+        .stdout(predicate::str::contains("Added task #1: Fix notification newline escaping"));
 
     cmd(&home)
         .current_dir(pomo.path())
@@ -176,9 +162,7 @@ fn positive_full_session_workflow_across_fscrm_and_pomo() {
         .stdout(predicate::str::contains("Fix Recover filters"))
         .stdout(predicate::str::contains("Validate backend filter support"))
         .stdout(predicate::str::contains("Run browser smoke test"))
-        .stdout(predicate::str::contains(
-            "Fix notification newline escaping",
-        ));
+        .stdout(predicate::str::contains("Fix notification newline escaping"));
 
     let events = read_log_lines(&fscrm);
     let ops: Vec<_> = events.iter().map(|ev| ev["op"].as_str().unwrap()).collect();
@@ -238,9 +222,7 @@ fn positive_all_status_filter_finds_needs_review_across_projects() {
         .args(["all", "--status", "needs-review"])
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "Fix notification newline escaping",
-        ))
+        .stdout(predicate::str::contains("Fix notification newline escaping"))
         .stdout(predicate::str::contains("Fix Recover filters").not());
 }
 
@@ -266,9 +248,7 @@ fn positive_agent_report_records_agent_note_and_moves_task_to_review() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "Recorded claude report for task #1",
-        ))
+        .stdout(predicate::str::contains("Recorded claude report for task #1"))
         .stdout(predicate::str::contains("Human verification required"));
 
     cmd(&home)

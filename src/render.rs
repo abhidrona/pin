@@ -18,25 +18,15 @@ pub struct SessionSummary {
 pub fn list(state: &ProjectState, status: Option<Status>, active_only: bool) -> String {
     let mut out = String::new();
     out.push_str(&format!("Project: {}", state.meta.name));
-    if let Some(branch) = git_branch(state) {
-        out.push_str(&format!(" · {}", branch));
-    }
+    if let Some(branch) = git_branch(state) { out.push_str(&format!(" · {}", branch)); }
     out.push('\n');
     out.push_str(&format!("Root: {}\n", state.meta.root.display()));
-    if let Some(session) = visible_session(state) {
-        out.push_str(&format!("Session: {}\n", session));
-    }
+    if let Some(session) = visible_session(state) { out.push_str(&format!("Session: {}\n", session)); }
     out.push('\n');
 
     for task in ordered_tasks(state) {
-        if active_only && !task.status.is_active() {
-            continue;
-        }
-        if let Some(s) = status {
-            if !status_matches(task.status, s) {
-                continue;
-            }
-        }
+        if active_only && !task.status.is_active() { continue; }
+        if let Some(s) = status { if !status_matches(task.status, s) { continue; } }
         out.push_str(&task_line(task));
         out.push('\n');
     }
@@ -46,25 +36,16 @@ pub fn list(state: &ProjectState, status: Option<Status>, active_only: bool) -> 
     out
 }
 
-pub fn show(state: &ProjectState) -> String {
-    hud(state)
-}
+pub fn show(state: &ProjectState) -> String { hud(state) }
 
 pub fn hud(state: &ProjectState) -> String {
     let mut out = String::new();
     out.push_str(&header(state));
-    if let Some(session) = visible_session(state) {
-        out.push_str(&format!(" · {}", session));
-    }
+    if let Some(session) = visible_session(state) { out.push_str(&format!(" · {}", session)); }
     out.push_str("\n\n");
 
     section(&mut out, "NOW", state, &[Status::Doing]);
-    section(
-        &mut out,
-        "REVIEW",
-        state,
-        &[Status::AgentDone, Status::NeedsReview],
-    );
+    section(&mut out, "REVIEW", state, &[Status::AgentDone, Status::NeedsReview]);
     section(&mut out, "FAILED", state, &[Status::Failed]);
     section(&mut out, "BLOCKED", state, &[Status::Blocked]);
     section(&mut out, "TODO", state, &[Status::Todo]);
@@ -88,20 +69,8 @@ pub fn task_detail(state: &ProjectState, id: u64) -> String {
     out.push_str(&format!("#{} {}\n", task.id, task.title));
     out.push_str(&format!("Status: {}\n", task.status.label()));
     out.push_str(&format!("Priority: {}\n", task.priority.as_str()));
-    out.push_str(&format!(
-        "Session: {}\n",
-        task.session.as_deref().unwrap_or("default")
-    ));
-    if !task.tags.is_empty() {
-        out.push_str(&format!(
-            "Tags: {}\n",
-            task.tags
-                .iter()
-                .map(|t| format!("#{t}"))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
+    out.push_str(&format!("Session: {}\n", task.session.as_deref().unwrap_or("default")));
+    if !task.tags.is_empty() { out.push_str(&format!("Tags: {}\n", task.tags.iter().map(|t| format!("#{t}")).collect::<Vec<_>>().join(" "))); }
     out.push('\n');
 
     out.push_str("Agent progress:\n");
@@ -149,17 +118,7 @@ pub fn session_summaries(state: &ProjectState) -> Vec<SessionSummary> {
     let mut map: BTreeMap<String, SessionSummary> = BTreeMap::new();
     for task in state.tasks.values().filter(|t| t.status.is_active()) {
         let name = task.session.as_deref().unwrap_or("default").to_string();
-        let e = map.entry(name.clone()).or_insert(SessionSummary {
-            name,
-            now: 0,
-            review: 0,
-            failed: 0,
-            blocked: 0,
-            todo: 0,
-            verified: 0,
-            cancelled: 0,
-            total_active: 0,
-        });
+        let e = map.entry(name.clone()).or_insert(SessionSummary { name, now: 0, review: 0, failed: 0, blocked: 0, todo: 0, verified: 0, cancelled: 0, total_active: 0 });
         e.total_active += 1;
         match task.status {
             Status::Doing => e.now += 1,
@@ -180,54 +139,28 @@ pub fn brief(state: &ProjectState) -> String {
     out.push_str("PIN HANDOFF\n\n");
     out.push_str("Project:\n");
     out.push_str(&format!("- Name: {}\n", state.meta.name));
-    if let Some(branch) = git_branch(state) {
-        out.push_str(&format!("- Branch: {}\n", branch));
-    }
+    if let Some(branch) = git_branch(state) { out.push_str(&format!("- Branch: {}\n", branch)); }
     out.push_str(&format!("- Root: {}\n", state.meta.root.display()));
-    if let Some(session) = visible_session(state) {
-        out.push_str(&format!("- Session: {}\n", session));
-    }
+    if let Some(session) = visible_session(state) { out.push_str(&format!("- Session: {}\n", session)); }
     out.push('\n');
 
-    brief_section(
-        &mut out,
-        "Focus",
-        state,
-        &[
-            Status::Doing,
-            Status::Failed,
-            Status::Blocked,
-            Status::NeedsReview,
-            Status::AgentDone,
-        ],
-    );
+    brief_section(&mut out, "Focus", state, &[Status::Doing, Status::Failed, Status::Blocked, Status::NeedsReview, Status::AgentDone]);
     brief_section(&mut out, "Open tasks", state, &[Status::Todo]);
-    brief_section(
-        &mut out,
-        "Verified but not closed",
-        state,
-        &[Status::Verified],
-    );
+    brief_section(&mut out, "Verified but not closed", state, &[Status::Verified]);
     brief_section(&mut out, "Cancelled", state, &[Status::Cancelled]);
 
     out.push_str("Recent notes:\n");
     let mut notes = Vec::new();
     for task in state.tasks.values() {
-        for note in task.notes.iter().rev().take(2) {
-            notes.push((note.created_at, task, note));
-        }
+        for note in task.notes.iter().rev().take(2) { notes.push((note.created_at, task, note)); }
     }
     notes.sort_by_key(|(ts, _, _)| ts.to_owned());
     notes.reverse();
-    if notes.is_empty() {
-        out.push_str("- none\n");
-    } else {
+    if notes.is_empty() { out.push_str("- none\n"); }
+    else {
         for (_, task, note) in notes.into_iter().take(8) {
             let who = note.agent.as_deref().unwrap_or(&note.author);
-            out.push_str(&format!(
-                "- #{} {} [{}]: {}\n",
-                task.id, task.title, who, note.body
-            ));
+            out.push_str(&format!("- #{} {} [{}]: {}\n", task.id, task.title, who, note.body));
         }
     }
     out.push('\n');
@@ -239,28 +172,16 @@ pub fn brief(state: &ProjectState) -> String {
 }
 
 fn header(state: &ProjectState) -> String {
-    match git_branch(state) {
-        Some(branch) => format!("{} · {}", state.meta.name, branch),
-        None => state.meta.name.clone(),
-    }
+    match git_branch(state) { Some(branch) => format!("{} · {}", state.meta.name, branch), None => state.meta.name.clone() }
 }
 
 fn section(out: &mut String, title: &str, state: &ProjectState, statuses: &[Status]) {
-    let tasks: Vec<_> = ordered_tasks(state)
-        .into_iter()
-        .filter(|t| statuses.contains(&t.status))
-        .collect();
-    if tasks.is_empty() {
-        return;
-    }
+    let tasks: Vec<_> = ordered_tasks(state).into_iter().filter(|t| statuses.contains(&t.status)).collect();
+    if tasks.is_empty() { return; }
     out.push_str(title);
     out.push('\n');
     for t in tasks {
-        let marker = if t.status == Status::Doing {
-            "→"
-        } else {
-            " "
-        };
+        let marker = if t.status == Status::Doing { "→" } else { " " };
         let suffix = task_suffix(t);
         out.push_str(&format!("{} #{} {}{}\n", marker, t.id, t.title, suffix));
     }
@@ -268,80 +189,36 @@ fn section(out: &mut String, title: &str, state: &ProjectState, statuses: &[Stat
 }
 
 fn brief_section(out: &mut String, title: &str, state: &ProjectState, statuses: &[Status]) {
-    let tasks: Vec<_> = ordered_tasks(state)
-        .into_iter()
-        .filter(|t| statuses.contains(&t.status))
-        .collect();
+    let tasks: Vec<_> = ordered_tasks(state).into_iter().filter(|t| statuses.contains(&t.status)).collect();
     out.push_str(title);
     out.push_str(":\n");
-    if tasks.is_empty() {
-        out.push_str("- none\n\n");
-        return;
-    }
+    if tasks.is_empty() { out.push_str("- none\n\n"); return; }
     for t in tasks {
         out.push_str(&format!("- #{} {}\n", t.id, t.title));
         out.push_str(&format!("  Status: {}\n", t.status.label()));
         out.push_str(&format!("  Priority: {}\n", t.priority.as_str()));
-        out.push_str(&format!(
-            "  Session: {}\n",
-            t.session.as_deref().unwrap_or("default")
-        ));
-        if !t.tags.is_empty() {
-            out.push_str(&format!(
-                "  Tags: {}\n",
-                t.tags
-                    .iter()
-                    .map(|t| format!("#{t}"))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            ));
-        }
+        out.push_str(&format!("  Session: {}\n", t.session.as_deref().unwrap_or("default")));
+        if !t.tags.is_empty() { out.push_str(&format!("  Tags: {}\n", t.tags.iter().map(|t| format!("#{t}")).collect::<Vec<_>>().join(" "))); }
         if !t.agents.is_empty() {
             out.push_str("  Agent progress:\n");
             for a in t.agents.values() {
-                out.push_str(&format!(
-                    "    - {}: {}{}\n",
-                    a.agent,
-                    a.status.as_str(),
-                    a.body
-                        .as_ref()
-                        .map(|b| format!(" — {}", b))
-                        .unwrap_or_default()
-                ));
+                out.push_str(&format!("    - {}: {}{}\n", a.agent, a.status.as_str(), a.body.as_ref().map(|b| format!(" — {}", b)).unwrap_or_default()));
             }
         }
-        if let Some(note) = t.notes.iter().rev().find(|n| n.agent.is_none()) {
-            out.push_str(&format!("  Latest human note: {}\n", note.body));
-        }
+        if let Some(note) = t.notes.iter().rev().find(|n| n.agent.is_none()) { out.push_str(&format!("  Latest human note: {}\n", note.body)); }
     }
     out.push('\n');
 }
 
 pub fn task_line(task: &Task) -> String {
-    format!(
-        "[{}] {:<8} {:<6} {}{}{}",
-        task.id,
-        task.status.label(),
-        task.priority.as_str(),
-        task.title,
-        task_suffix(task),
-        agent_marker(task)
-    )
+    format!("[{}] {:<8} {:<6} {}{}{}", task.id, task.status.label(), task.priority.as_str(), task.title, task_suffix(task), agent_marker(task))
 }
 
 fn task_suffix(task: &Task) -> String {
     let mut parts = Vec::new();
-    if let Some(session) = &task.session {
-        parts.push(format!("%{}", session));
-    }
-    for tag in &task.tags {
-        parts.push(format!("#{}", tag));
-    }
-    if parts.is_empty() {
-        String::new()
-    } else {
-        format!("  {}", parts.join(" "))
-    }
+    if let Some(session) = &task.session { parts.push(format!("%{}", session)); }
+    for tag in &task.tags { parts.push(format!("#{}", tag)); }
+    if parts.is_empty() { String::new() } else { format!("  {}", parts.join(" ")) }
 }
 
 fn agent_marker(task: &Task) -> String {
@@ -354,44 +231,21 @@ fn agent_marker(task: &Task) -> String {
 
 fn agent_progress_line(progress: &AgentProgress) -> String {
     match &progress.body {
-        Some(body) => format!(
-            "  {}: {} — {}\n",
-            progress.agent,
-            progress.status.as_str(),
-            body
-        ),
+        Some(body) => format!("  {}: {} — {}\n", progress.agent, progress.status.as_str(), body),
         None => format!("  {}: {}\n", progress.agent, progress.status.as_str()),
     }
 }
 
 fn session_counts(s: &SessionSummary) -> String {
     let mut parts = Vec::new();
-    if s.now > 0 {
-        parts.push(format!("{} now", s.now));
-    }
-    if s.review > 0 {
-        parts.push(format!("{} review", s.review));
-    }
-    if s.failed > 0 {
-        parts.push(format!("{} failed", s.failed));
-    }
-    if s.blocked > 0 {
-        parts.push(format!("{} blocked", s.blocked));
-    }
-    if s.todo > 0 {
-        parts.push(format!("{} todo", s.todo));
-    }
-    if s.verified > 0 {
-        parts.push(format!("{} verified", s.verified));
-    }
-    if s.cancelled > 0 {
-        parts.push(format!("{} cancelled", s.cancelled));
-    }
-    if parts.is_empty() {
-        "no active tasks".to_string()
-    } else {
-        parts.join(" · ")
-    }
+    if s.now > 0 { parts.push(format!("{} now", s.now)); }
+    if s.review > 0 { parts.push(format!("{} review", s.review)); }
+    if s.failed > 0 { parts.push(format!("{} failed", s.failed)); }
+    if s.blocked > 0 { parts.push(format!("{} blocked", s.blocked)); }
+    if s.todo > 0 { parts.push(format!("{} todo", s.todo)); }
+    if s.verified > 0 { parts.push(format!("{} verified", s.verified)); }
+    if s.cancelled > 0 { parts.push(format!("{} cancelled", s.cancelled)); }
+    if parts.is_empty() { "no active tasks".to_string() } else { parts.join(" · ") }
 }
 
 fn ordered_tasks(state: &ProjectState) -> Vec<&Task> {
@@ -406,50 +260,18 @@ fn ordered_tasks(state: &ProjectState) -> Vec<&Task> {
         vec![Status::Cancelled],
         vec![Status::Done],
     ] {
-        for task in state
-            .tasks
-            .values()
-            .filter(|t| statuses.contains(&t.status))
-        {
-            out.push(task);
-        }
+        for task in state.tasks.values().filter(|t| statuses.contains(&t.status)) { out.push(task); }
     }
     out
 }
 
 fn next_guidance(state: &ProjectState) -> String {
-    if let Some(t) = first_with_status(state, Status::Failed) {
-        return format!("Fix failed task #{} first: {}. Inspect task details with `pin show {}` before asking an agent to continue.", t.id, t.title, t.id);
-    }
-    if let Some(t) = first_with_status(state, Status::Blocked) {
-        return format!(
-            "Unblock task #{} first: {}. Resolve the blocker or choose another unblocked task.",
-            t.id, t.title
-        );
-    }
-    if let Some(t) = first_with_status(state, Status::NeedsReview)
-        .or_else(|| first_with_status(state, Status::AgentDone))
-    {
-        return format!(
-            "Review task #{}: {}. Check agent progress in `pin show {}` and pin verified/failed.",
-            t.id, t.title, t.id
-        );
-    }
-    if let Some(t) = first_with_status(state, Status::Doing) {
-        return format!(
-            "Continue active task #{}: {}. Record agent progress with `pin ag {}` when useful.",
-            t.id, t.title, t.id
-        );
-    }
-    if let Some(t) = first_with_status(state, Status::Todo) {
-        return format!("Start task #{}: {}.", t.id, t.title);
-    }
-    if let Some(t) = first_with_status(state, Status::Verified) {
-        return format!(
-            "Task #{} is verified. Close it with `pin done {}` or start the next task.",
-            t.id, t.id
-        );
-    }
+    if let Some(t) = first_with_status(state, Status::Failed) { return format!("Fix failed task #{} first: {}. Inspect task details with `pin show {}` before asking an agent to continue.", t.id, t.title, t.id); }
+    if let Some(t) = first_with_status(state, Status::Blocked) { return format!("Unblock task #{} first: {}. Resolve the blocker or choose another unblocked task.", t.id, t.title); }
+    if let Some(t) = first_with_status(state, Status::NeedsReview).or_else(|| first_with_status(state, Status::AgentDone)) { return format!("Review task #{}: {}. Check agent progress in `pin show {}` and pin verified/failed.", t.id, t.title, t.id); }
+    if let Some(t) = first_with_status(state, Status::Doing) { return format!("Continue active task #{}: {}. Record agent progress with `pin ag {}` when useful.", t.id, t.title, t.id); }
+    if let Some(t) = first_with_status(state, Status::Todo) { return format!("Start task #{}: {}.", t.id, t.title); }
+    if let Some(t) = first_with_status(state, Status::Verified) { return format!("Task #{} is verified. Close it with `pin done {}` or start the next task.", t.id, t.id); }
     "No active work. Add a task with `pin add \"...\"`.".to_string()
 }
 
@@ -466,47 +288,21 @@ fn next_for_task(task: &Task) -> String {
     }
 }
 
-fn first_with_status(state: &ProjectState, status: Status) -> Option<&Task> {
-    state
-        .tasks
-        .values()
-        .find(|t| status_matches(t.status, status))
-}
+fn first_with_status(state: &ProjectState, status: Status) -> Option<&Task> { state.tasks.values().find(|t| status_matches(t.status, status)) }
 
 fn status_matches(actual: Status, wanted: Status) -> bool {
     actual == wanted || (wanted == Status::AgentDone && actual == Status::NeedsReview)
 }
 
 fn visible_session(state: &ProjectState) -> Option<String> {
-    let mut sessions: Vec<String> = state
-        .tasks
-        .values()
-        .filter_map(|t| t.session.clone())
-        .collect();
-    sessions.sort();
-    sessions.dedup();
-    if sessions.len() == 1 {
-        sessions.pop()
-    } else {
-        None
-    }
+    let mut sessions: Vec<String> = state.tasks.values().filter_map(|t| t.session.clone()).collect();
+    sessions.sort(); sessions.dedup();
+    if sessions.len() == 1 { sessions.pop() } else { None }
 }
 
 fn git_branch(state: &ProjectState) -> Option<String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(&state.meta.root)
-        .arg("branch")
-        .arg("--show-current")
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
+    let output = Command::new("git").arg("-C").arg(&state.meta.root).arg("branch").arg("--show-current").output().ok()?;
+    if !output.status.success() { return None; }
     let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if branch.is_empty() {
-        None
-    } else {
-        Some(branch)
-    }
+    if branch.is_empty() { None } else { Some(branch) }
 }

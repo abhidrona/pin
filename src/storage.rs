@@ -29,19 +29,17 @@ pub fn init_project(root: &Path) -> Result<bool> {
     }
 
     if !log_path.exists() {
-        OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path)?;
+        OpenOptions::new().create(true).append(true).open(&log_path)?;
     }
 
     Ok(created)
 }
 
+
 pub fn load_meta(root: &Path) -> Result<ProjectMeta> {
     let path = root.join(MARK_DIR).join(META_FILE);
     let data = fs::read_to_string(&path)
-        .with_context(|| format!("pin is not initialized in this project. Run: pin init"))?;
+        .with_context(|| "pin is not initialized in this project. Run: pin init".to_string())?;
     serde_json::from_str(&data).with_context(|| format!("failed to parse {}", path.display()))
 }
 
@@ -50,17 +48,13 @@ pub fn load_events(root: &Path) -> Result<Vec<Event>> {
     if !path.exists() {
         bail!("pin is not initialized in this project. Run: pin init");
     }
-    let file = OpenOptions::new()
-        .read(true)
-        .open(&path)
+    let file = OpenOptions::new().read(true).open(&path)
         .with_context(|| format!("failed to read {}", path.display()))?;
     let reader = BufReader::new(file);
     let mut events = Vec::new();
     for (idx, line) in reader.lines().enumerate() {
         let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
+        if line.trim().is_empty() { continue; }
         let ev: Event = serde_json::from_str(&line)
             .with_context(|| format!("failed to parse {} at line {}", path.display(), idx + 1))?;
         events.push(ev);
@@ -76,10 +70,7 @@ pub fn load_state(root: &Path) -> Result<ProjectState> {
 
 pub fn append_event(root: &Path, ev: &Event) -> Result<()> {
     let path = root.join(MARK_DIR).join(LOG_FILE);
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
+    let mut file = OpenOptions::new().create(true).append(true).open(&path)
         .with_context(|| format!("failed to open {}", path.display()))?;
     serde_json::to_writer(&mut file, ev)?;
     file.write_all(b"\n")?;

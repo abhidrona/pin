@@ -33,16 +33,7 @@ fn tags_are_stored_displayed_and_filterable() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args([
-            "add",
-            "Fix Recover filters",
-            "-p",
-            "high",
-            "-t",
-            "ui",
-            "-t",
-            "agent,backend",
-        ])
+        .args(["add", "Fix Recover filters", "-p", "high", "-t", "ui", "-t", "agent,backend"])
         .assert()
         .success();
 
@@ -78,10 +69,7 @@ fn tags_are_stored_displayed_and_filterable() {
         .stdout(predicate::str::contains("Fix Recover filters").not());
 
     let events = read_log_lines(&fscrm);
-    assert_eq!(
-        events[0]["tags"],
-        serde_json::json!(["agent", "backend", "ui"])
-    );
+    assert_eq!(events[0]["tags"], serde_json::json!(["agent", "backend", "ui"]));
     assert_eq!(events[2]["op"], "task.tags.add");
 }
 
@@ -98,14 +86,7 @@ fn sessions_allow_claude_and_codex_to_share_one_folder_without_mixing_tasks() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args([
-            "-s",
-            "codex",
-            "add",
-            "Validate backend filter support",
-            "-t",
-            "backend",
-        ])
+        .args(["-s", "codex", "add", "Validate backend filter support", "-t", "backend"])
         .assert()
         .success();
 
@@ -175,11 +156,7 @@ fn git_worktree_marker_file_is_treated_as_project_root() {
     let worktree = project("fscrm-worktree");
     let nested = worktree.path().join("backend/app/services");
     fs::create_dir_all(&nested).unwrap();
-    fs::write(
-        worktree.path().join(".git"),
-        "gitdir: /tmp/main/.git/worktrees/fscrm-worktree\n",
-    )
-    .unwrap();
+    fs::write(worktree.path().join(".git"), "gitdir: /tmp/main/.git/worktrees/fscrm-worktree\n").unwrap();
 
     cmd(&home)
         .current_dir(&nested)
@@ -243,16 +220,7 @@ fn short_flags_and_aliases_work_for_daily_flow() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args([
-            "-s",
-            "recover-filters",
-            "a",
-            "Fix Recover filters",
-            "-p",
-            "high",
-            "-t",
-            "ui",
-        ])
+        .args(["-s", "recover-filters", "a", "Fix Recover filters", "-p", "high", "-t", "ui"])
         .assert()
         .success();
 
@@ -265,15 +233,7 @@ fn short_flags_and_aliases_work_for_daily_flow() {
 
     cmd(&home)
         .current_dir(fscrm.path())
-        .args([
-            "-s",
-            "recover-filters",
-            "report",
-            "1",
-            "--agent",
-            "claude",
-            "Changed URL params",
-        ])
+        .args(["-s", "recover-filters", "report", "1", "--agent", "claude", "Changed URL params"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Task moved to review"));

@@ -94,15 +94,9 @@ fn add_empty_title_from_terminal_fails_without_writing_event() {
         .stderr(predicate::str::contains("Task title cannot be empty"));
 
     let log_path = project.path().join(".pin/log.jsonl");
-    assert!(
-        log_path.exists(),
-        "add auto-initializes before validating title"
-    );
+    assert!(log_path.exists(), "add auto-initializes before validating title");
     let data = fs::read_to_string(log_path).unwrap();
-    assert!(
-        data.trim().is_empty(),
-        "invalid add must not append an event"
-    );
+    assert!(data.trim().is_empty(), "invalid add must not append an event");
 }
 
 #[test]

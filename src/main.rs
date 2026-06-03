@@ -61,78 +61,34 @@ enum Cmd {
         tags: Vec<String>,
     },
     #[command(alias = "s")]
-    Start {
-        id: u64,
-    },
+    Start { id: u64 },
     #[command(alias = "ad", alias = "claim", alias = "claimed", alias = "reported")]
-    AgentDone {
-        id: u64,
-    },
+    AgentDone { id: u64 },
     #[command(alias = "r")]
-    Review {
-        id: u64,
-    },
+    Review { id: u64 },
     #[command(alias = "ok")]
-    Verified {
-        id: u64,
-        body: Option<String>,
-    },
+    Verified { id: u64, body: Option<String> },
     #[command(alias = "f")]
-    Fail {
-        id: u64,
-        body: String,
-    },
+    Fail { id: u64, body: String },
     #[command(alias = "b")]
-    Block {
-        id: u64,
-        body: String,
-    },
+    Block { id: u64, body: String },
     #[command(alias = "c", alias = "cancelled")]
-    Cancel {
-        id: u64,
-    },
+    Cancel { id: u64 },
     #[command(alias = "d")]
-    Done {
-        id: u64,
-    },
+    Done { id: u64 },
     #[command(alias = "n")]
-    Note {
-        id: u64,
-        body: String,
-        #[arg(long)]
-        agent: Option<String>,
-    },
+    Note { id: u64, body: String, #[arg(long)] agent: Option<String> },
     /// Add tags to a task. Tags can be repeated or comma-separated.
-    Tag {
-        id: u64,
-        tags: Vec<String>,
-    },
+    Tag { id: u64, tags: Vec<String> },
     /// Remove tags from a task. Tags can be repeated or comma-separated.
-    Untag {
-        id: u64,
-        tags: Vec<String>,
-    },
+    Untag { id: u64, tags: Vec<String> },
     /// Record agent progress without changing human task truth.
     #[command(alias = "ag", alias = "progress")]
-    Agent {
-        id: u64,
-        agent: String,
-        #[arg(value_enum)]
-        status: AgentStatus,
-        body: String,
-    },
+    Agent { id: u64, agent: String, #[arg(value_enum)] status: AgentStatus, body: String },
     /// Record a human-approved agent summary and move the task to review.
     #[command(alias = "report", alias = "ar")]
-    AgentReport {
-        id: u64,
-        #[arg(long, short = 'a')]
-        agent: String,
-        body: String,
-    },
-    Edit {
-        id: u64,
-        title: String,
-    },
+    AgentReport { id: u64, #[arg(long, short = 'a')] agent: String, body: String },
+    Edit { id: u64, title: String },
     #[command(alias = "view")]
     Show {
         id: Option<u64>,
@@ -162,10 +118,7 @@ enum Cmd {
         #[arg(short = 't', long = "tag")]
         tags: Vec<String>,
     },
-    TmuxInstall {
-        #[arg(long, default_value = "T")]
-        key: String,
-    },
+    TmuxInstall { #[arg(long, default_value = "T")] key: String },
 }
 
 fn main() {
@@ -184,140 +137,53 @@ fn run() -> Result<()> {
         Cmd::Init => {
             let created = storage::init_project(&root)?;
             register_best_effort(&root);
-            if created {
-                println!("Initialized pin in {}", root.display());
-            } else {
-                println!("pin already initialized in {}", root.display());
-            }
+            if created { println!("Initialized pin in {}", root.display()); }
+            else { println!("pin already initialized in {}", root.display()); }
         }
-        Cmd::Add {
-            title,
-            priority,
-            agent,
-            tags,
-        } => {
+        Cmd::Add { title, priority, agent, tags } => {
             let created = storage::init_project(&root)?;
             register_best_effort(&root);
-            if created {
-                println!("Initialized pin in {}", root.display());
-            }
+            if created { println!("Initialized pin in {}", root.display()); }
             let tags = ops::normalize_tags(tags);
-            let id = ops::add(
-                &root,
-                title.clone(),
-                priority,
-                agent,
-                tags,
-                Some(session.clone().unwrap_or_else(|| "default".to_string())),
-            )?;
+            let id = ops::add(&root, title.clone(), priority, agent, tags, Some(session.clone().unwrap_or_else(|| "default".to_string())))?;
             println!("Added task #{}: {}", id, title);
         }
-        Cmd::List {
-            status,
-            active,
-            tags,
-        } => {
+        Cmd::List { status, active, tags } => {
             let state = filtered_state(&root, session.as_deref().or(Some("default")), tags)?;
             println!("{}", render::list(&state, status, active));
         }
-        Cmd::All {
-            include_done,
-            status,
-            tags,
-        } => all(
-            include_done,
-            status,
-            session.as_deref(),
-            ops::normalize_tags(tags),
-        )?,
+        Cmd::All { include_done, status, tags } => all(include_done, status, session.as_deref(), ops::normalize_tags(tags))?,
         Cmd::Start { id } => set_status(&root, id, Status::Doing, None, "Started")?,
         Cmd::AgentDone { id } => set_status(&root, id, Status::NeedsReview, None, "Marked review")?,
-        Cmd::Review { id } => {
-            set_status(&root, id, Status::NeedsReview, None, "Marked needs-review")?
-        }
+        Cmd::Review { id } => set_status(&root, id, Status::NeedsReview, None, "Marked needs-review")?,
         Cmd::Verified { id, body } => set_status(&root, id, Status::Verified, body, "Verified")?,
-        Cmd::Fail { id, body } => {
-            set_status(&root, id, Status::Failed, Some(body), "Marked failed")?
-        }
+        Cmd::Fail { id, body } => set_status(&root, id, Status::Failed, Some(body), "Marked failed")?,
         Cmd::Block { id, body } => set_status(&root, id, Status::Blocked, Some(body), "Blocked")?,
         Cmd::Cancel { id } => set_status(&root, id, Status::Cancelled, None, "Cancelled")?,
         Cmd::Done { id } => set_status(&root, id, Status::Done, None, "Done")?,
-        Cmd::Note { id, body, agent } => {
-            ops::note(&root, id, body, agent)?;
-            println!("Added note to task #{}.", id);
-        }
-        Cmd::Tag { id, tags } => {
-            ops::add_tags(&root, id, tags)?;
-            println!("Tagged task #{}.", id);
-        }
-        Cmd::Untag { id, tags } => {
-            ops::remove_tags(&root, id, tags)?;
-            println!("Removed tags from task #{}.", id);
-        }
-        Cmd::Agent {
-            id,
-            agent,
-            status,
-            body,
-        } => {
+        Cmd::Note { id, body, agent } => { ops::note(&root, id, body, agent)?; println!("Added note to task #{}.", id); }
+        Cmd::Tag { id, tags } => { ops::add_tags(&root, id, tags)?; println!("Tagged task #{}.", id); }
+        Cmd::Untag { id, tags } => { ops::remove_tags(&root, id, tags)?; println!("Removed tags from task #{}.", id); }
+        Cmd::Agent { id, agent, status, body } => {
             let agent_name = agent.clone();
             ops::agent_progress(&root, id, agent, status, body)?;
-            println!(
-                "Recorded {agent_name} progress for task #{id}: {}.",
-                status.as_str()
-            );
+            println!("Recorded {agent_name} progress for task #{id}: {}.", status.as_str());
         }
         Cmd::AgentReport { id, agent, body } => {
             let agent_name = agent.clone();
             ops::agent_report(&root, id, agent, body)?;
             println!("Recorded {agent_name} report for task #{id}. Task moved to review. Human verification required.");
         }
-        Cmd::Edit { id, title } => {
-            ops::set_title(&root, id, title)?;
-            println!("Edited task #{}.", id);
+        Cmd::Edit { id, title } => { ops::set_title(&root, id, title)?; println!("Edited task #{}.", id); }
+        Cmd::Show { id, tags, all_sessions } => {
+            let state = filtered_state(&root, if all_sessions { None } else { session.as_deref().or(Some("default")) }, tags)?;
+            if let Some(id) = id { println!("{}", render::task_detail(&state, id)); }
+            else { println!("{}", render::show(&state)); }
         }
-        Cmd::Show {
-            id,
-            tags,
-            all_sessions,
-        } => {
-            let state = filtered_state(
-                &root,
-                if all_sessions {
-                    None
-                } else {
-                    session.as_deref().or(Some("default"))
-                },
-                tags,
-            )?;
-            if let Some(id) = id {
-                println!("{}", render::task_detail(&state, id));
-            } else {
-                println!("{}", render::show(&state));
-            }
-        }
-        Cmd::Brief { tags, all_sessions } => {
-            let state = filtered_state(
-                &root,
-                if all_sessions {
-                    None
-                } else {
-                    session.as_deref().or(Some("default"))
-                },
-                tags,
-            )?;
-            println!("{}", render::brief(&state));
-        }
-        Cmd::Sessions => {
-            let state = storage::load_state(&root)?;
-            println!("{}", render::sessions(&state));
-        }
+        Cmd::Brief { tags, all_sessions } => { let state = filtered_state(&root, if all_sessions { None } else { session.as_deref().or(Some("default")) }, tags)?; println!("{}", render::brief(&state)); }
+        Cmd::Sessions => { let state = storage::load_state(&root)?; println!("{}", render::sessions(&state)); }
         Cmd::Overlay { tags } => overlay(&root, session.as_deref(), ops::normalize_tags(tags))?,
-        Cmd::Tui { tags } => tui::run(
-            root,
-            session.or_else(|| Some("default".to_string())),
-            ops::normalize_tags(tags),
-        )?,
+        Cmd::Tui { tags } => tui::run(root, session.or_else(|| Some("default".to_string())), ops::normalize_tags(tags))?,
         Cmd::TmuxInstall { key } => {
             println!("bind-key {} display-popup -w 80% -h 70% -E \"pin ui\"", key);
         }
@@ -333,79 +199,38 @@ fn effective_session(cli_session: Option<String>) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn filtered_state(
-    root: &std::path::Path,
-    session: Option<&str>,
-    tags: Vec<String>,
-) -> Result<model::ProjectState> {
+fn filtered_state(root: &std::path::Path, session: Option<&str>, tags: Vec<String>) -> Result<model::ProjectState> {
     let state = storage::load_state(root)?;
     Ok(state.filtered(session, &ops::normalize_tags(tags)))
 }
 
-fn set_status(
-    root: &std::path::Path,
-    id: u64,
-    status: Status,
-    body: Option<String>,
-    label: &str,
-) -> Result<()> {
+fn set_status(root: &std::path::Path, id: u64, status: Status, body: Option<String>, label: &str) -> Result<()> {
     ops::status(root, id, status, body)?;
     println!("{} task #{}.", label, id);
     Ok(())
 }
 
-fn all(
-    include_done: bool,
-    status: Option<Status>,
-    session: Option<&str>,
-    tags: Vec<String>,
-) -> Result<()> {
+fn all(include_done: bool, status: Option<Status>, session: Option<&str>, tags: Vec<String>) -> Result<()> {
     let projects = registry::load_projects()?;
-    println!(
-        "All {}tasks{}{}\n",
+    println!("All {}tasks{}{}\n",
         if include_done { "" } else { "active " },
-        session
-            .map(|s| format!(" for session '{s}'"))
-            .unwrap_or_default(),
-        if tags.is_empty() {
-            String::new()
-        } else {
-            format!(
-                " tagged {}",
-                tags.iter()
-                    .map(|t| format!("#{t}"))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        }
+        session.map(|s| format!(" for session '{s}'")).unwrap_or_default(),
+        if tags.is_empty() { String::new() } else { format!(" tagged {}", tags.iter().map(|t| format!("#{t}")).collect::<Vec<_>>().join(", ")) }
     );
     for p in projects {
         let state = match storage::load_state(&p.root) {
             Ok(s) => s.filtered(session, &tags),
-            Err(e) => {
-                eprintln!("warning: skipping {}: {}", p.root.display(), e);
-                continue;
-            }
+            Err(e) => { eprintln!("warning: skipping {}: {}", p.root.display(), e); continue; }
         };
         let mut lines = Vec::new();
         for task in state.tasks.values() {
-            if !include_done && !task.status.is_active() {
-                continue;
-            }
-            if let Some(s) = status {
-                if !status_matches(task.status, s) {
-                    continue;
-                }
-            }
+            if !include_done && !task.status.is_active() { continue; }
+            if let Some(s) = status { if !status_matches(task.status, s) { continue; } }
             lines.push(render::task_line(task));
         }
-        if lines.is_empty() {
-            continue;
-        }
+        if lines.is_empty() { continue; }
         println!("{}  {}", state.meta.name, state.meta.root.display());
-        for line in lines {
-            println!("  {}", line);
-        }
+        for line in lines { println!("  {}", line); }
         println!();
     }
     Ok(())
@@ -415,9 +240,7 @@ fn overlay(root: &std::path::Path, session: Option<&str>, tags: Vec<String>) -> 
     let multi_session = if session.is_none() {
         let state = storage::load_state(root)?;
         render::session_summaries(&state).len() > 1
-    } else {
-        false
-    };
+    } else { false };
 
     if std::env::var_os("TMUX").is_some() {
         let mut command = String::from("pin");
@@ -426,16 +249,12 @@ fn overlay(root: &std::path::Path, session: Option<&str>, tags: Vec<String>) -> 
         } else {
             let effective = session.unwrap_or("default");
             command.push_str(&format!(" --session {} tui", shell_escape(effective)));
-            for tag in &tags {
-                command.push_str(&format!(" --tag {}", shell_escape(tag)));
-            }
+            for tag in &tags { command.push_str(&format!(" --tag {}", shell_escape(tag))); }
         }
         let status = Command::new("tmux")
             .arg("display-popup")
-            .arg("-w")
-            .arg("80%")
-            .arg("-h")
-            .arg("70%")
+            .arg("-w").arg("80%")
+            .arg("-h").arg("70%")
             .arg("-E")
             .arg(command)
             .status();
@@ -456,11 +275,7 @@ fn overlay(root: &std::path::Path, session: Option<&str>, tags: Vec<String>) -> 
         return Ok(());
     }
 
-    tui::run(
-        root.to_path_buf(),
-        Some(session.unwrap_or("default").to_string()),
-        tags,
-    )
+    tui::run(root.to_path_buf(), Some(session.unwrap_or("default").to_string()), tags)
 }
 
 fn register_best_effort(root: &std::path::Path) {
@@ -475,9 +290,7 @@ fn status_matches(actual: Status, wanted: Status) -> bool {
 }
 
 fn shell_escape(s: &str) -> String {
-    if s.chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '/')
-    {
+    if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '/') {
         s.to_string()
     } else {
         format!("'{}'", s.replace('\'', "'\\''"))
