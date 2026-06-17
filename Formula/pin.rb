@@ -1,7 +1,7 @@
 class Pin < Formula
   desc "Terminal sticky-note HUD for human-agent coding sessions"
   homepage "https://github.com/abhidrona/pin"
-  url "https://github.com/abhidrona/pin.git", tag: "v0.1.0"
+  url "https://github.com/abhidrona/pin.git", tag: "v0.1.1"
   license "MIT"
 
   depends_on "rust" => :build

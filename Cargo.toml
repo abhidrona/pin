@@ -1,6 +1,6 @@
 [package]
 name = "pin-hud"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Directory-aware terminal task tracker with a tmux/Ghostty-friendly overlay"
 license = "MIT"
