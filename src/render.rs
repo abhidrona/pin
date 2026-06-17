@@ -69,6 +69,7 @@ pub fn hud(state: &ProjectState) -> String {
     section(&mut out, "BLOCKED", state, &[Status::Blocked]);
     section(&mut out, "TODO", state, &[Status::Todo]);
     section(&mut out, "VERIFIED", state, &[Status::Verified]);
+    section(&mut out, "DONE", state, &[Status::Done]);
     section(&mut out, "CANCELLED", state, &[Status::Cancelled]);
 
     if !state.tasks.values().any(|t| t.status.is_active()) {
@@ -98,6 +99,16 @@ pub fn task_detail(state: &ProjectState, id: u64) -> String {
             task.tags
                 .iter()
                 .map(|t| format!("#{t}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    if !task.files.is_empty() {
+        out.push_str(&format!(
+            "Files: {}\n",
+            task.files
+                .iter()
+                .map(|f| format!("@{f}"))
                 .collect::<Vec<_>>()
                 .join(" ")
         ));
