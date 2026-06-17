@@ -11,9 +11,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> Result<()> {
-    terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, Hide)?;
+    let _guard = TerminalGuard::enter(&mut stdout)?;
 
     let mut selected: usize = 0;
     let mut show_help = false;
@@ -171,9 +170,25 @@ pub fn run(root: PathBuf, session: Option<String>, filter_tags: Vec<String>) -> 
         }
     }
 
-    execute!(stdout, Show, LeaveAlternateScreen)?;
-    terminal::disable_raw_mode()?;
     Ok(())
+}
+
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn enter(stdout: &mut io::Stdout) -> Result<Self> {
+        terminal::enable_raw_mode()?;
+        execute!(stdout, EnterAlternateScreen, Hide)?;
+        Ok(Self)
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let mut stdout = io::stdout();
+        let _ = execute!(stdout, Show, LeaveAlternateScreen);
+        let _ = terminal::disable_raw_mode();
+    }
 }
 
 fn parse_agent_status(s: &str) -> Option<AgentStatus> {

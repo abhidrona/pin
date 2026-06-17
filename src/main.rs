@@ -8,11 +8,19 @@ mod storage;
 mod tui;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use model::{AgentStatus, Priority, Status};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::Command;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum OverlayBackend {
+    Auto,
+    Tmux,
+    Tui,
+    Plain,
+}
 
 #[derive(Parser)]
 #[command(name = "pin", version, about = "Directory-aware terminal task tracker")]
@@ -46,7 +54,7 @@ enum Cmd {
         #[arg(short = 'F', long = "file")]
         files: Vec<String>,
     },
-    #[command(alias = "ls")]
+    #[command(alias = "ls", alias = "l")]
     List {
         #[arg(long, value_enum)]
         status: Option<Status>,
@@ -171,6 +179,9 @@ enum Cmd {
     Overlay {
         #[arg(short = 't', long = "tag")]
         tags: Vec<String>,
+        /// Overlay backend: auto, tmux, tui, or plain. Can also be set with PIN_OVERLAY_BACKEND.
+        #[arg(long, value_enum, default_value_t = OverlayBackend::Auto)]
+        backend: OverlayBackend,
     },
     #[command(alias = "ui")]
     Tui {
@@ -348,7 +359,12 @@ fn run() -> Result<()> {
             let state = storage::load_state(&root)?;
             println!("{}", render::sessions(&state));
         }
-        Cmd::Overlay { tags } => overlay(&root, session.as_deref(), ops::normalize_tags(tags))?,
+        Cmd::Overlay { tags, backend } => overlay(
+            &root,
+            session.as_deref(),
+            ops::normalize_tags(tags),
+            backend,
+        )?,
         Cmd::Tui { tags } => tui::run(
             root,
             session.or_else(|| Some("default".to_string())),
@@ -461,26 +477,86 @@ fn all(
     Ok(())
 }
 
-fn overlay(root: &std::path::Path, session: Option<&str>, tags: Vec<String>) -> Result<()> {
-    let multi_session = if session.is_none() {
-        let state = storage::load_state(root)?;
-        render::session_summaries(&state).len() > 1
-    } else {
-        false
-    };
+fn overlay(
+    root: &std::path::Path,
+    session: Option<&str>,
+    tags: Vec<String>,
+    backend: OverlayBackend,
+) -> Result<()> {
+    let backend = effective_overlay_backend(backend);
+    let state = storage::load_state(root)?;
+    let multi_session = session.is_none() && render::session_summaries(&state).len() > 1;
+
+    match backend {
+        OverlayBackend::Plain => return print_overlay_plain(root, session, &tags, multi_session),
+        OverlayBackend::Tmux => {
+            if try_tmux_overlay(session, &tags, multi_session) {
+                return Ok(());
+            }
+            eprintln!("warning: failed to open tmux popup. falling back to plain output.");
+            return print_overlay_plain(root, session, &tags, multi_session);
+        }
+        OverlayBackend::Tui => {
+            if can_run_tui(true) && !multi_session {
+                return tui::run(
+                    root.to_path_buf(),
+                    Some(session.unwrap_or("default").to_string()),
+                    tags,
+                );
+            }
+            return print_overlay_plain(root, session, &tags, multi_session);
+        }
+        OverlayBackend::Auto => {}
+    }
 
     if std::env::var_os("TMUX").is_some() {
-        let mut command = String::from("pin");
-        if multi_session {
-            command.push_str(" sessions");
-        } else {
-            let effective = session.unwrap_or("default");
-            command.push_str(&format!(" --session {} tui", shell_escape(effective)));
-            for tag in &tags {
-                command.push_str(&format!(" --tag {}", shell_escape(tag)));
-            }
+        if try_tmux_overlay(session, &tags, multi_session) {
+            return Ok(());
         }
-        let status = Command::new("tmux")
+        eprintln!("warning: failed to open tmux popup. falling back to plain output.");
+        return print_overlay_plain(root, session, &tags, multi_session);
+    }
+
+    if can_run_tui(false) && !multi_session {
+        tui::run(
+            root.to_path_buf(),
+            Some(session.unwrap_or("default").to_string()),
+            tags,
+        )
+    } else {
+        print_overlay_plain(root, session, &tags, multi_session)
+    }
+}
+
+fn print_overlay_plain(
+    root: &std::path::Path,
+    session: Option<&str>,
+    tags: &[String],
+    multi_session: bool,
+) -> Result<()> {
+    let state = storage::load_state(root)?;
+    if multi_session {
+        println!("{}", render::sessions(&state));
+    } else {
+        let effective = session.or(Some("default"));
+        println!("{}", render::show(&state.filtered(effective, tags)));
+    }
+    Ok(())
+}
+
+fn try_tmux_overlay(session: Option<&str>, tags: &[String], multi_session: bool) -> bool {
+    let mut command = String::from("pin");
+    if multi_session {
+        command.push_str(" sessions");
+    } else {
+        let effective = session.unwrap_or("default");
+        command.push_str(&format!(" --session {} ui", shell_escape(effective)));
+        for tag in tags {
+            command.push_str(&format!(" --tag {}", shell_escape(tag)));
+        }
+    }
+    matches!(
+        Command::new("tmux")
             .arg("display-popup")
             .arg("-w")
             .arg("80%")
@@ -488,29 +564,44 @@ fn overlay(root: &std::path::Path, session: Option<&str>, tags: Vec<String>) -> 
             .arg("70%")
             .arg("-E")
             .arg(command)
-            .status();
-        match status {
-            Ok(s) if s.success() => return Ok(()),
-            _ => eprintln!("warning: failed to open tmux popup. falling back to plain output."),
-        }
-    }
-
-    if !std::io::stdout().is_terminal() || multi_session {
-        let state = storage::load_state(root)?;
-        if multi_session {
-            println!("{}", render::sessions(&state));
-        } else {
-            let effective = session.or(Some("default"));
-            println!("{}", render::show(&state.filtered(effective, &tags)));
-        }
-        return Ok(());
-    }
-
-    tui::run(
-        root.to_path_buf(),
-        Some(session.unwrap_or("default").to_string()),
-        tags,
+            .status(),
+        Ok(status) if status.success()
     )
+}
+
+fn effective_overlay_backend(cli_backend: OverlayBackend) -> OverlayBackend {
+    if cli_backend != OverlayBackend::Auto {
+        return cli_backend;
+    }
+    match std::env::var("PIN_OVERLAY_BACKEND") {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "tmux" => OverlayBackend::Tmux,
+            "tui" => OverlayBackend::Tui,
+            "plain" | "view" | "text" => OverlayBackend::Plain,
+            _ => OverlayBackend::Auto,
+        },
+        Err(_) => OverlayBackend::Auto,
+    }
+}
+
+fn can_run_tui(forced: bool) -> bool {
+    if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
+        return false;
+    }
+    if !forced && is_problematic_terminal() {
+        return false;
+    }
+    match crossterm::terminal::size() {
+        Ok((cols, rows)) => cols >= 60 && rows >= 18,
+        Err(_) => false,
+    }
+}
+
+fn is_problematic_terminal() -> bool {
+    let term_program = std::env::var("TERM_PROGRAM")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    term_program.contains("warp") || std::env::var_os("WARP_SESSION_ID").is_some()
 }
 
 fn register_best_effort(root: &std::path::Path) {

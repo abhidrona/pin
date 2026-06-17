@@ -117,6 +117,7 @@ Worktrees naturally get their own `.pin/` directory. Use worktrees for branch/fe
 
 ```bash
 pin ls
+pin l
 pin list
 pin -s auth-refresh ls
 ```
@@ -151,7 +152,7 @@ pin o
 pin show
 ```
 
-Inside tmux, Pin opens a popup. Outside tmux, it uses a terminal HUD. In non-interactive output it prints the same simplified view.
+Inside tmux, Pin opens a popup. Outside tmux, Pin uses the terminal UI when the terminal is supported. In non-interactive output, Warp, small terminals, or unsupported terminals, it falls back to the plain `pin show` view so the shell prompt is not corrupted.
 
 The overlay list is intentionally quiet:
 
@@ -170,6 +171,20 @@ FAILED
 TODO
   #4 Update README examples  %auth-refresh #docs
 ```
+
+
+Overlay backend controls:
+
+```bash
+pin overlay --backend auto    # default
+pin overlay --backend tmux    # force tmux popup
+pin overlay --backend tui     # force terminal UI
+pin overlay --backend plain   # print plain view
+
+export PIN_OVERLAY_BACKEND=plain
+```
+
+If your terminal redraws prompts unusually, such as Warp or heavily customized zsh prompts, use `PIN_OVERLAY_BACKEND=plain` or run `pin ui` explicitly when you want the interactive terminal UI.
 
 Open task details from the overlay with `Enter`.
 

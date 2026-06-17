@@ -133,3 +133,15 @@ Esc    cancel the modal and stay in overlay
 ```
 
 All add/edit/note/status actions keep you inside the overlay. The editor opens as a centered modal instead of dropping you back to the shell.
+
+
+## Overlay backend
+
+`pin overlay` supports backend selection:
+
+- `auto`: tmux popup inside tmux, TUI only in safe interactive terminals, plain output otherwise.
+- `tmux`: force tmux popup.
+- `tui`: force interactive terminal UI.
+- `plain`: print the plain session view.
+
+The `PIN_OVERLAY_BACKEND` environment variable accepts `auto`, `tmux`, `tui`, or `plain`. Warp and non-interactive terminals should default to plain output in auto mode.

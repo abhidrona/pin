@@ -65,3 +65,18 @@ Attach or remove files explicitly:
 pin ref 1 src/auth/login.rs
 pin unref 1 src/auth/login.rs
 .fi
+
+.SH OVERLAY BACKENDS
+.B pin overlay
+uses tmux popup inside tmux, terminal UI in supported interactive terminals, and plain output otherwise.
+Set
+.B PIN_OVERLAY_BACKEND
+to
+.BR plain ,
+.BR tui ,
+or
+.B tmux
+to override auto detection.
+.PP
+Example:
+.BR PIN_OVERLAY_BACKEND=plain\ pin\ overlay
