@@ -5,6 +5,7 @@
 ```bash
 pin a "Task title" -p high -t ui
 pin ls
+pin l
 pin show
 pin show 1
 pin o
@@ -41,6 +42,19 @@ pin ok 1 "verified note"
 pin d 1
 pin c 1
 ```
+
+## Overlay backends
+
+`pin overlay` uses tmux popup inside tmux. Outside tmux it uses the terminal UI only when the terminal looks safe. Warp and non-interactive shells fall back to plain output.
+
+```bash
+pin overlay --backend plain
+pin overlay --backend tui
+pin overlay --backend tmux
+export PIN_OVERLAY_BACKEND=plain
+```
+
+Use `pin ui` to explicitly open the interactive terminal UI.
 
 ## tmux
 

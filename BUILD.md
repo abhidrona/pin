@@ -311,3 +311,17 @@ Or:
 ```bash
 man ./man/man1/pin.1
 ```
+
+
+## Overlay backend debugging
+
+`pin overlay` should not corrupt shell prompts. It uses tmux popup in tmux, a TUI only for supported interactive terminals, and plain output otherwise.
+
+For terminals with custom redraw behavior, such as Warp, test with:
+
+```bash
+PIN_OVERLAY_BACKEND=plain pin overlay
+PIN_OVERLAY_BACKEND=tui pin overlay
+```
+
+Use `pin ui` to test the raw TUI path directly.
